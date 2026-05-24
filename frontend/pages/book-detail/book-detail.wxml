@@ -1,0 +1,258 @@
+<view class="container">
+  <view class="header">
+    <view class="back-btn" bindtap="goBack">
+      <text class="back-icon">←</text>
+    </view>
+    <view class="header-info">
+      <text class="book-name">{{ bookName }}</text>
+      <text class="word-count">{{ filteredWords.length }} 个单词</text>
+    </view>
+    <view class="header-actions">
+      <view class="batch-btn" bindtap="toggleBatchMode">
+        <text>{{ batchMode ? '取消' : '批量' }}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="search-bar">
+    <input 
+      class="search-input" 
+      placeholder="搜索单词..." 
+      value="{{ searchKeyword }}"
+      bindinput="onSearchInput"
+    />
+    <text class="search-icon">🔍</text>
+  </view>
+
+  <scroll-view class="word-list" scroll-y>
+    <view class="word-item {{ batchMode ? 'batch-mode' : '' }}" wx:for="{{ filteredWords }}" wx:key="id">
+      <view class="word-checkbox-wrapper" wx:if="{{ batchMode }}" bindtap="toggleWordSelection" data-word="{{ item }}">
+        <view class="word-checkbox {{selectedWords[item.id ? item.id : index] ? 'checked' : ''}}">
+          <text class="check-icon" wx:if="{{selectedWords[item.id ? item.id : index]}}">✓</text>
+        </view>
+      </view>
+      <view class="word-header">
+        <view class="word-main" bindtap="{{ batchMode ? '' : 'showWordDetail' }}" data-word="{{ item }}">
+          <text class="word-text">{{ item.wordText }}</text>
+          <text class="phonetic">{{ item.phonetic }}</text>
+        </view>
+        <view class="word-actions" wx:if="{{ !batchMode }}">
+          <view class="action-btn edit-btn" bindtap="showEditWordModal" data-word="{{ item }}">✎</view>
+          <view class="action-btn delete-btn" bindtap="deleteWord" data-word="{{ item }}">✕</view>
+        </view>
+      </view>
+      <view class="word-body" bindtap="{{ batchMode ? '' : 'showWordDetail' }}" data-word="{{ item }}">
+        <view class="word-definition">{{ item.definition }}</view>
+        <view class="word-part">{{ item.partOfSpeech }}</view>
+      </view>
+    </view>
+
+    <view class="empty-state" wx:if="{{ filteredWords.length === 0 }}">
+      <text class="empty-icon">📚</text>
+      <text class="empty-text">{{ searchKeyword ? '未找到匹配的单词' : '单词书还没有单词' }}</text>
+      <text class="empty-hint">点击右下角添加单词</text>
+    </view>
+  </scroll-view>
+
+  <view class="add-btn" bindtap="showAddWordModal" wx:if="{{ !batchMode }}">
+    <text class="add-icon">+</text>
+  </view>
+
+  <view class="batch-action-bar" wx:if="{{ batchMode }}">
+    <view class="select-all-btn" bindtap="toggleSelectAll">
+      <text>{{ selectedCount === filteredWords.length && filteredWords.length > 0 ? '取消全选' : '全选' }}</text>
+    </view>
+    <view class="delete-selected-btn {{ selectedCount === 0 ? 'disabled' : '' }}" bindtap="batchDeleteWords">
+      <text>删除选中 ({{ selectedCount }})</text>
+    </view>
+  </view>
+
+  <view class="modal-overlay" wx:if="{{ showModal }}" bindtap="closeModal">
+    <view class="modal-content" catchtap="preventBubble">
+      <view class="modal-header">
+        <text class="modal-title">添加单词</text>
+        <text class="modal-close" bindtap="closeModal">×</text>
+      </view>
+
+      <view class="form-item">
+        <text class="form-label">单词 *</text>
+        <input 
+          class="form-input" 
+          placeholder="请输入单词" 
+          value="{{ wordForm.wordText }}"
+          bindinput="handleInput"
+          data-field="wordText"
+        />
+      </view>
+
+      <view class="form-row">
+        <view class="form-item half">
+          <text class="form-label">音标</text>
+          <input 
+            class="form-input" 
+            placeholder="音标" 
+            value="{{ wordForm.phonetic }}"
+            bindinput="handleInput"
+            data-field="phonetic"
+          />
+        </view>
+        <view class="form-item half">
+          <text class="form-label">词性</text>
+          <input 
+            class="form-input" 
+            placeholder="词性" 
+            value="{{ wordForm.partOfSpeech }}"
+            bindinput="handleInput"
+            data-field="partOfSpeech"
+          />
+        </view>
+      </view>
+
+      <view class="form-item">
+        <text class="form-label">中文释义 *</text>
+        <textarea 
+          class="form-textarea" 
+          placeholder="请输入中文释义" 
+          value="{{ wordForm.definition }}"
+          bindinput="handleInput"
+          data-field="definition"
+        />
+      </view>
+
+      <view class="form-item">
+        <text class="form-label">例句</text>
+        <textarea 
+          class="form-textarea" 
+          placeholder="请输入例句" 
+          value="{{ wordForm.exampleSentence }}"
+          bindinput="handleInput"
+          data-field="exampleSentence"
+        />
+      </view>
+
+      <view class="form-item">
+        <text class="form-label">例句翻译</text>
+        <textarea 
+          class="form-textarea" 
+          placeholder="请输入例句翻译" 
+          value="{{ wordForm.exampleTranslation }}"
+          bindinput="handleInput"
+          data-field="exampleTranslation"
+        />
+      </view>
+
+      <view class="form-item">
+        <button class="ai-btn" bindtap="aiFillWord">✨ AI代填</button>
+      </view>
+
+      <view class="form-item" wx:if="{{ aiFilled }}">
+        <button class="submit-btn" bindtap="submitAddWord">添加到单词书</button>
+      </view>
+
+      <view class="form-item">
+        <button class="cancel-btn" bindtap="closeModal">取消</button>
+      </view>
+    </view>
+  </view>
+
+  <view class="word-detail-modal" wx:if="{{ showWordDetail }}" bindtap="closeWordDetail">
+    <view class="word-detail-content" catchtap="preventBubble">
+      <view class="word-detail-header">
+        <text class="detail-word">{{ selectedWord.wordText }}</text>
+        <text class="detail-phonetic">{{ selectedWord.phonetic }}</text>
+        <text class="detail-part">{{ selectedWord.partOfSpeech }}</text>
+      </view>
+      <view class="detail-definition">{{ selectedWord.definition }}</view>
+      <view class="detail-example" wx:if="{{ selectedWord.exampleSentence }}">
+        <text class="example-label">例句：</text>
+        <text class="example-text">{{ selectedWord.exampleSentence }}</text>
+        <text class="example-trans">{{ selectedWord.exampleTranslation }}</text>
+      </view>
+      <view class="detail-close" bindtap="closeWordDetail">关闭</view>
+    </view>
+  </view>
+
+  <view class="modal-overlay" wx:if="{{ showEditModal }}" bindtap="closeEditModal">
+    <view class="modal-content" catchtap="preventBubble">
+      <view class="modal-header">
+        <text class="modal-title">修改单词</text>
+        <text class="modal-close" bindtap="closeEditModal">×</text>
+      </view>
+
+      <view class="form-item">
+        <text class="form-label">单词 *</text>
+        <input 
+          class="form-input" 
+          placeholder="请输入单词" 
+          value="{{ editForm.wordText }}"
+          bindinput="handleEditInput"
+          data-field="wordText"
+        />
+      </view>
+
+      <view class="form-row">
+        <view class="form-item half">
+          <text class="form-label">音标</text>
+          <input 
+            class="form-input" 
+            placeholder="音标" 
+            value="{{ editForm.phonetic }}"
+            bindinput="handleEditInput"
+            data-field="phonetic"
+          />
+        </view>
+        <view class="form-item half">
+          <text class="form-label">词性</text>
+          <input 
+            class="form-input" 
+            placeholder="词性" 
+            value="{{ editForm.partOfSpeech }}"
+            bindinput="handleEditInput"
+            data-field="partOfSpeech"
+          />
+        </view>
+      </view>
+
+      <view class="form-item">
+        <text class="form-label">中文释义 *</text>
+        <textarea 
+          class="form-textarea" 
+          placeholder="请输入中文释义" 
+          value="{{ editForm.definition }}"
+          bindinput="handleEditInput"
+          data-field="definition"
+        />
+      </view>
+
+      <view class="form-item">
+        <text class="form-label">例句</text>
+        <textarea 
+          class="form-textarea" 
+          placeholder="请输入例句" 
+          value="{{ editForm.exampleSentence }}"
+          bindinput="handleEditInput"
+          data-field="exampleSentence"
+        />
+      </view>
+
+      <view class="form-item">
+        <text class="form-label">例句翻译</text>
+        <textarea 
+          class="form-textarea" 
+          placeholder="请输入例句翻译" 
+          value="{{ editForm.exampleTranslation }}"
+          bindinput="handleEditInput"
+          data-field="exampleTranslation"
+        />
+      </view>
+
+      <view class="form-item">
+        <button class="submit-btn" bindtap="submitEditWord">保存修改</button>
+      </view>
+
+      <view class="form-item">
+        <button class="cancel-btn" bindtap="closeEditModal">取消</button>
+      </view>
+    </view>
+  </view>
+</view>

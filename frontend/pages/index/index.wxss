@@ -1,0 +1,265 @@
+.container {
+  min-height: 100vh;
+  background: #f5f5f5;
+  padding-bottom: 120rpx;
+}
+
+.header {
+  background: linear-gradient(135deg, #4a90d9 0%, #67b8f7 100%);
+  padding: 40rpx 30rpx 60rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.header-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.greeting {
+  font-size: 40rpx;
+  font-weight: 600;
+  color: #fff;
+}
+
+.today {
+  font-size: 26rpx;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 10rpx;
+}
+
+.streak-badge {
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 12rpx 20rpx;
+  border-radius: 30rpx;
+}
+
+.streak-icon {
+  font-size: 28rpx;
+  margin-right: 8rpx;
+}
+
+.streak-count {
+  font-size: 24rpx;
+  color: #fff;
+  font-weight: 600;
+}
+
+.progress-card {
+  background: #fff;
+  margin: -30rpx 20rpx 20rpx;
+  border-radius: 20rpx;
+  padding: 30rpx;
+  box-shadow: 0 8rpx 30rpx rgba(74, 144, 217, 0.15);
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.progress-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #333;
+  display: block;
+}
+
+.progress-subtitle {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 8rpx;
+}
+
+.progress-circle {
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4a90d9 0%, #67b8f7 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.progress-percent {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #fff;
+}
+
+.progress-bar-wrap {
+  height: 16rpx;
+  background: #f0f0f0;
+  border-radius: 8rpx;
+  margin-top: 20rpx;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #4a90d9 0%, #67b8f7 100%);
+  border-radius: 8rpx;
+  transition: width 0.5s ease;
+}
+
+.quick-action-section {
+  margin: 0 20rpx 20rpx;
+}
+
+.quick-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #5eb97d 0%, #7ed39e 100%);
+  border-radius: 20rpx;
+  padding: 36rpx;
+  box-shadow: 0 8rpx 24rpx rgba(94, 185, 125, 0.3);
+}
+
+.quick-action-icon {
+  font-size: 48rpx;
+  margin-right: 16rpx;
+}
+
+.quick-action-label {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #fff;
+}
+
+.total-stats {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  margin: 0 20rpx;
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 40rpx 20rpx;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-value {
+  font-size: 44rpx;
+  font-weight: 600;
+  color: #4a90d9;
+}
+
+.stat-label {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 8rpx;
+}
+
+.stat-divider {
+  width: 2rpx;
+  height: 60rpx;
+  background: #f0f0f0;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  width: 620rpx;
+  background: #fff;
+  border-radius: 24rpx;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx 32rpx;
+  border-bottom: 2rpx solid #f5f5f5;
+}
+
+.modal-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #333;
+}
+
+.modal-close {
+  font-size: 48rpx;
+  color: #999;
+  line-height: 1;
+}
+
+.modal-body {
+  padding: 30rpx 32rpx;
+}
+
+.form-item {
+  margin-bottom: 28rpx;
+}
+
+.form-label {
+  font-size: 28rpx;
+  color: #666;
+  margin-bottom: 16rpx;
+  display: block;
+}
+
+.form-input {
+  width: 100%;
+  height: 88rpx;
+  border: 2rpx solid #e8e8e8;
+  border-radius: 12rpx;
+  padding: 0 24rpx;
+  font-size: 30rpx;
+  box-sizing: border-box;
+}
+
+.form-textarea {
+  width: 100%;
+  height: 160rpx;
+  border: 2rpx solid #e8e8e8;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  font-size: 30rpx;
+  box-sizing: border-box;
+}
+
+.modal-footer {
+  display: flex;
+  border-top: 2rpx solid #f5f5f5;
+}
+
+.modal-btn {
+  flex: 1;
+  height: 96rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  font-weight: 500;
+}
+
+.modal-btn-cancel {
+  color: #666;
+  border-right: 2rpx solid #f5f5f5;
+}
+
+.modal-btn-confirm {
+  color: #4a90d9;
+}

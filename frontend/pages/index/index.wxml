@@ -1,0 +1,74 @@
+<view class="container">
+  <view class="header">
+    <view class="header-content">
+      <text class="greeting">{{greeting}}</text>
+      <text class="today">{{today}}</text>
+    </view>
+    <view class="streak-badge">
+      <text class="streak-icon">🔥</text>
+      <text class="streak-count">{{streak}}天</text>
+    </view>
+  </view>
+  
+  <view class="progress-card">
+    <view class="progress-header">
+      <view class="progress-info">
+        <text class="progress-title">今日学习进度</text>
+        <text class="progress-subtitle">已学习 {{todayWords}} / {{targetWords}} 词</text>
+      </view>
+      <view class="progress-circle">
+        <text class="progress-percent">{{progress}}%</text>
+      </view>
+    </view>
+    <view class="progress-bar-wrap">
+      <view class="progress-bar" style="width: {{progress}}%"></view>
+    </view>
+  </view>
+  
+  <view class="quick-action-section">
+    <view class="quick-action-btn" bindtap="createBook">
+      <text class="quick-action-icon">📚</text>
+      <text class="quick-action-label">创建单词书</text>
+    </view>
+  </view>
+  
+  <view class="total-stats">
+    <view class="stat-item">
+      <text class="stat-value">{{totalWords}}</text>
+      <text class="stat-label">累计学习</text>
+    </view>
+    <view class="stat-divider"></view>
+    <view class="stat-item">
+      <text class="stat-value">{{streak}}</text>
+      <text class="stat-label">连续天数</text>
+    </view>
+    <view class="stat-divider"></view>
+    <view class="stat-item">
+      <text class="stat-value">{{todayWords}}</text>
+      <text class="stat-label">今日学习</text>
+    </view>
+  </view>
+</view>
+
+<view class="modal-overlay" wx:if="{{showModal}}" bindtap="closeModal">
+  <view class="modal-content" catchtap="preventBubble">
+    <view class="modal-header">
+      <text class="modal-title">创建单词书</text>
+      <text class="modal-close" bindtap="closeModal">×</text>
+    </view>
+    <view class="modal-body">
+      <view class="form-item">
+        <text class="form-label">名称</text>
+        <input class="form-input" placeholder="请输入单词书名称" value="{{bookForm.name}}" bindinput="onNameInput" />
+      </view>
+      <view class="form-item">
+        <text class="form-label">描述</text>
+        <textarea class="form-textarea" placeholder="请输入单词书描述（可选）" value="{{bookForm.description}}" bindinput="onDescInput" />
+      </view>
+    </view>
+    <view class="modal-footer">
+      <view class="modal-btn modal-btn-cancel" bindtap="closeModal">取消</view>
+      <view class="modal-btn modal-btn-confirm" bindtap="submitCreate">创建</view>
+    </view>
+  </view>
+</view>

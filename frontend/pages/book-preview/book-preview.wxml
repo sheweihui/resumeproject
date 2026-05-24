@@ -1,0 +1,49 @@
+<view class="container">
+  <view class="header">
+    <view class="back-btn" bindtap="goBack">
+      <text class="back-icon">←</text>
+    </view>
+    <view class="header-info">
+      <text class="book-name">{{ bookName }}</text>
+      <text class="word-count">{{ filteredWords.length }} 个单词</text>
+    </view>
+  </view>
+
+  <view class="search-bar">
+    <input
+      class="search-input"
+      placeholder="搜索单词..."
+      value="{{ searchKeyword }}"
+      bindinput="onSearchInput"
+    />
+    <text class="search-icon">🔍</text>
+  </view>
+
+  <scroll-view class="word-list" scroll-y>
+    <view class="word-item" wx:for="{{ filteredWords }}" wx:key="id">
+      <view class="word-header">
+        <view class="word-main">
+          <text class="word-text">{{ item.wordText }}</text>
+          <text class="phonetic">{{ item.phonetic }}</text>
+        </view>
+        <view class="word-part">{{ item.partOfSpeech }}</view>
+      </view>
+      <view class="word-body">
+        <view class="word-definition">{{ item.definition }}</view>
+      </view>
+      <view class="word-example" wx:if="{{ item.exampleSentence }}">
+        <text class="example-sentence">{{ item.exampleSentence }}</text>
+        <text class="example-translation">{{ item.exampleTranslation }}</text>
+      </view>
+    </view>
+
+    <view class="empty-state" wx:if="{{ !isLoading && filteredWords.length === 0 }}">
+      <text class="empty-icon">📚</text>
+      <text class="empty-text">{{ searchKeyword ? '未找到匹配的单词' : '单词书还没有单词' }}</text>
+    </view>
+
+    <view class="loading-state" wx:if="{{ isLoading }}">
+      <text>加载中...</text>
+    </view>
+  </scroll-view>
+</view>

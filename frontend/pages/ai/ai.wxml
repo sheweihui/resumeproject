@@ -1,0 +1,47 @@
+<view class="container">
+  <view class="chat-area">
+    <view 
+      wx:for="{{messages}}" 
+      wx:key="id" 
+      class="message-item {{item.type}}"
+    >
+      <view class="avatar">
+        <text class="avatar-icon">{{item.type === 'ai' ? '🤖' : '👤'}}</text>
+      </view>
+      <view class="message-content">
+        <text>{{item.content}}</text>
+      </view>
+    </view>
+    
+    <view wx:if="{{isLoading}}" class="loading">
+      <view class="loading-dot"></view>
+      <view class="loading-dot"></view>
+      <view class="loading-dot"></view>
+    </view>
+  </view>
+  
+  <view class="quick-actions">
+    <view 
+      wx:for="['帮我查一个单词', '推荐今天学习的单词', '测试我的词汇量', '解释这个句子']" 
+      wx:key="index"
+      class="action-item"
+      bindtap="quickAction"
+      data-action="{{item}}"
+    >
+      {{item}}
+    </view>
+  </view>
+  
+  <view class="input-area">
+    <input 
+      class="input-box" 
+      placeholder="输入你的问题..." 
+      value="{{inputText}}"
+      bindinput="onInput"
+      bindconfirm="sendMessage"
+    />
+    <view class="send-btn" bindtap="sendMessage">
+      <text>发送</text>
+    </view>
+  </view>
+</view>

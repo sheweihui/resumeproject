@@ -1,0 +1,80 @@
+<view class="container">
+  <view class="header">
+    <view class="user-card">
+      <view class="avatar-wrap" bindtap="goToProfile">
+        <image class="avatar" src="{{userInfo.avatar || '/images/default-avatar.png'}}" mode="aspectFill" />
+        <view class="level-badge">{{userInfo.level}}</view>
+      </view>
+      <view class="user-info">
+        <text class="user-name">{{userInfo.nickname || userInfo.username}}</text>
+        <view class="streak">
+          <text class="streak-icon">🔥</text>
+          <text class="streak-text">已学习 {{userInfo.createdDays}} 天</text>
+        </view>
+      </view>
+    </view>
+    
+    <view class="progress-card">
+      <view class="progress-header">
+        <text class="progress-title">单词掌握进度</text>
+        <text class="progress-count">{{progress.mastered}}/{{progress.total}}</text>
+      </view>
+      <view class="progress-bar-wrap">
+        <view class="progress-bar" style="width: {{progress.percent}}%"></view>
+      </view>
+      <view class="progress-percent">{{progress.percent}}%</view>
+    </view>
+  </view>
+  
+  <view class="points-card">
+    <view class="points-left">
+      <text class="points-label">我的积分</text>
+      <view class="points-amount">
+        <text class="points-symbol">⭐</text>
+        <text class="points-number">{{pointsBalance.balance}}</text>
+        <text class="points-unit">积分</text>
+      </view>
+      <view class="points-stats">
+        <text class="stat-item">累计获得 {{pointsBalance.totalEarned}}</text>
+        <text class="stat-divider">|</text>
+        <text class="stat-item">累计消费 {{pointsBalance.totalSpent}}</text>
+      </view>
+    </view>
+    <view class="points-right">
+      <view class="checkin-btn {{checkinInfo.checkedIn ? 'checked-in' : ''}}" bindtap="checkin">
+        <text class="checkin-icon">{{checkinInfo.checkedIn ? '✅' : '📅'}}</text>
+        <text class="checkin-text">{{checkinInfo.checkedIn ? '已签到' : '签到'}}</text>
+        <text wx:if="{{checkinInfo.continuousDays > 0 && !checkinInfo.checkedIn}}" class="checkin-days">连续{{checkinInfo.continuousDays}}天</text>
+      </view>
+    </view>
+  </view>
+  
+  <view class="stats-grid">
+    <view wx:for="{{stats}}" wx:key="label" class="stat-item">
+      <text class="stat-value">{{item.value}}</text>
+      <text class="stat-unit">{{item.unit}}</text>
+      <text class="stat-label">{{item.label}}</text>
+    </view>
+  </view>
+  
+  <view class="menu-section">
+    <view 
+      wx:for="{{menuItems}}" 
+      wx:key="label" 
+      class="menu-item"
+      bindtap="goToMenuItem"
+      data-item="{{item}}"
+    >
+      <text class="menu-icon">{{item.icon}}</text>
+      <text class="menu-label">{{item.label}}</text>
+      <text wx:if="{{item.badge}}" class="menu-badge">{{item.badge}}</text>
+      <text class="menu-arrow">›</text>
+    </view>
+    
+    <view class="menu-item logout-item" bindtap="logout">
+      <text class="menu-icon">📤</text>
+      <text class="menu-label">退出登录</text>
+      <text class="menu-arrow">›</text>
+    </view>
+  </view>
+</view>

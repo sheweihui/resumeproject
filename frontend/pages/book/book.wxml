@@ -1,0 +1,228 @@
+<view class="container">
+  <view class="header">
+    <text class="page-title">我的单词书</text>
+    <view class="add-btn" bindtap="showAddWordModal">
+      <text class="add-icon">+</text>
+      <text class="add-text">添加单词</text>
+    </view>
+  </view>
+
+  <view class="book-list">
+    <view
+      wx:for="{{books}}"
+      wx:key="id"
+      class="book-card"
+      bindtap="goToBookDetail"
+      data-book="{{item}}"
+    >
+      <view class="book-cover">
+        <text class="cover-icon">📚</text>
+      </view>
+      <view class="book-info">
+        <text class="book-name">{{item.bookName}}</text>
+        <text class="book-desc">{{item.description || '暂无描述'}}</text>
+        <view class="book-meta">
+          <text class="word-count">{{item.wordCount}} 词</text>
+          <text class="create-time">{{formatDate(item.createdAt)}}</text>
+        </view>
+      </view>
+      <view class="book-actions">
+        <view class="action-btn edit-btn" catchtap="editBookTap" data-bookid="{{item.id}}" data-bookname="{{item.bookName}}" data-desc="{{item.description || ''}}">
+          <text>✎</text>
+        </view>
+        <view class="action-btn delete-btn" catchtap="deleteBookTap" data-bookid="{{item.id}}" data-bookname="{{item.bookName}}">
+          <text>✕</text>
+        </view>
+      </view>
+      <view class="book-arrow">
+        <text>›</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-state" wx:if="{{books.length === 0}}">
+    <text class="empty-icon">📚</text>
+    <text class="empty-title">暂无单词书</text>
+    <text class="empty-desc">点击右下角按钮创建单词书</text>
+  </view>
+
+  <view class="fab-btn" bindtap="showCreateBookModal">
+    <text class="fab-icon">+</text>
+  </view>
+
+  <view class="modal-overlay" wx:if="{{showAddModal}}" bindtap="closeAddModal">
+    <view class="modal-content" catchtap>
+      <view class="modal-header">
+        <text class="modal-title">添加单词</text>
+        <view class="modal-close" bindtap="closeAddModal">×</view>
+      </view>
+      <scroll-view class="modal-body" scroll-y>
+        <view class="form-item">
+          <text class="form-label">选择单词书</text>
+          <view class="book-options">
+            <view
+              wx:for="{{books}}"
+              wx:key="id"
+              class="book-option {{selectedBookId === item.id ? 'selected' : ''}}"
+              bindtap="selectBook"
+              data-book-id="{{item.id}}"
+            >
+              {{item.bookName}}
+            </view>
+          </view>
+        </view>
+        <view class="form-item">
+          <text class="form-label">单词<text class="required">*</text></text>
+          <view class="input-row">
+            <input
+              class="form-input flex-input"
+              placeholder="请输入单词"
+              value="{{wordForm.wordText}}"
+              bindinput="handleInput"
+              data-field="wordText"
+            />
+            <view class="ai-fill-btn" bindtap="aiFillWord">
+              <text class="ai-icon">🤖</text>
+              <text class="ai-text">AI代填</text>
+            </view>
+          </view>
+        </view>
+        <view class="form-item">
+          <text class="form-label">音标</text>
+          <input
+            class="form-input"
+            placeholder="请输入音标"
+            value="{{wordForm.phonetic}}"
+            bindinput="handleInput"
+            data-field="phonetic"
+          />
+        </view>
+        <view class="form-item">
+          <text class="form-label">词性</text>
+          <input
+            class="form-input"
+            placeholder="如：n. v. adj."
+            value="{{wordForm.partOfSpeech}}"
+            bindinput="handleInput"
+            data-field="partOfSpeech"
+          />
+        </view>
+        <view class="form-item">
+          <text class="form-label">中文释义<text class="required">*</text></text>
+          <input
+            class="form-input"
+            placeholder="请输入中文释义"
+            value="{{wordForm.definition}}"
+            bindinput="handleInput"
+            data-field="definition"
+          />
+        </view>
+        <view class="form-item">
+          <text class="form-label">例句</text>
+          <textarea
+            class="form-textarea"
+            placeholder="请输入例句"
+            value="{{wordForm.exampleSentence}}"
+            bindinput="handleInput"
+            data-field="exampleSentence"
+          />
+        </view>
+        <view class="form-item">
+          <text class="form-label">例句翻译</text>
+          <textarea
+            class="form-textarea"
+            placeholder="请输入例句翻译"
+            value="{{wordForm.exampleTranslation}}"
+            bindinput="handleInput"
+            data-field="exampleTranslation"
+          />
+        </view>
+        <view class="form-item" wx:if="{{aiFilled}}">
+          <view class="add-word-btn" bindtap="submitAddWord">
+            <text class="btn-icon">+</text>
+            <text class="btn-text">添加到单词书</text>
+          </view>
+        </view>
+      </scroll-view>
+      <view class="modal-footer">
+        <view class="cancel-btn" bindtap="closeAddModal">取消</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="modal-overlay" wx:if="{{showCreateBookModal}}" bindtap="closeCreateBookModal">
+    <view class="modal-content" catchtap>
+      <view class="modal-header">
+        <text class="modal-title">创建单词书</text>
+        <view class="modal-close" bindtap="closeCreateBookModal">×</view>
+      </view>
+      <scroll-view class="modal-body" scroll-y>
+        <view class="form-item">
+          <text class="form-label">单词书名称<text class="required">*</text></text>
+          <input
+            class="form-input"
+            placeholder="请输入单词书名称"
+            value="{{newBookName}}"
+            bindinput="onBookNameInput"
+          />
+        </view>
+        <view class="form-item">
+          <text class="form-label">描述</text>
+          <textarea
+            class="form-textarea"
+            placeholder="请输入单词书描述（可选）"
+            value="{{newBookDesc}}"
+            bindinput="onBookDescInput"
+          />
+        </view>
+        <view class="form-item">
+          <view class="add-word-btn" bindtap="createBook">
+            <text class="btn-icon">+</text>
+            <text class="btn-text">创建单词书</text>
+          </view>
+        </view>
+      </scroll-view>
+      <view class="modal-footer">
+        <view class="cancel-btn" bindtap="closeCreateBookModal">取消</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="modal-overlay" wx:if="{{showEditBookModal}}" bindtap="closeEditModal">
+    <view class="modal-content" catchtap>
+      <view class="modal-header">
+        <text class="modal-title">修改单词书</text>
+        <view class="modal-close" bindtap="closeEditModal">×</view>
+      </view>
+      <scroll-view class="modal-body" scroll-y>
+        <view class="form-item">
+          <text class="form-label">单词书名称<text class="required">*</text></text>
+          <input
+            class="form-input"
+            placeholder="请输入单词书名称"
+            value="{{editBookName}}"
+            bindinput="editNameInput"
+          />
+        </view>
+        <view class="form-item">
+          <text class="form-label">描述</text>
+          <textarea
+            class="form-textarea"
+            placeholder="请输入单词书描述（可选）"
+            value="{{editBookDesc}}"
+            bindinput="editDescInput"
+          />
+        </view>
+        <view class="form-item">
+          <view class="add-word-btn" bindtap="confirmEditBook">
+            <text class="btn-icon">✓</text>
+            <text class="btn-text">保存修改</text>
+          </view>
+        </view>
+      </scroll-view>
+      <view class="modal-footer">
+        <view class="cancel-btn" bindtap="closeEditModal">取消</view>
+      </view>
+    </view>
+  </view>
+</view>

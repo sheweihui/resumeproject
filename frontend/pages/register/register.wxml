@@ -1,0 +1,69 @@
+<view class="container">
+  <view class="logo-section">
+    <view class="logo">🚀</view>
+    <text class="title">创建账号</text>
+    <text class="subtitle">开启你的学习之旅</text>
+  </view>
+
+  <view class="form-section">
+    <view class="input-item">
+      <text class="input-icon">👤</text>
+      <input 
+        class="input-field" 
+        placeholder="用户名（3-20个字符）" 
+        value="{{username}}" 
+        bindinput="onUsernameInput"
+      />
+    </view>
+
+    <view class="input-item">
+      <text class="input-icon">🎭</text>
+      <input 
+        class="input-field" 
+        placeholder="昵称（选填）" 
+        value="{{nickname}}" 
+        bindinput="onNicknameInput"
+      />
+    </view>
+
+    <view class="input-item">
+      <text class="input-icon">🔒</text>
+      <input 
+        class="input-field" 
+        placeholder="密码（至少6个字符）" 
+        value="{{password}}" 
+        bindinput="onPasswordInput"
+        password="{{!showPassword}}"
+      />
+      <text class="toggle-btn" bindtap="togglePassword">
+        {{showPassword ? '🙈' : '👁️'}}
+      </text>
+    </view>
+
+    <view class="input-item">
+      <text class="input-icon">🔑</text>
+      <input 
+        class="input-field" 
+        placeholder="确认密码" 
+        value="{{confirmPassword}}" 
+        bindinput="onConfirmPasswordInput"
+        password="{{!showConfirmPassword}}"
+      />
+      <text class="toggle-btn" bindtap="toggleConfirmPassword">
+        {{showConfirmPassword ? '🙈' : '👁️'}}
+      </text>
+    </view>
+
+    <view class="register-btn" bindtap="register" disabled="{{isLoading}}">
+      <text>{{isLoading ? '注册中...' : '注 册'}}</text>
+    </view>
+
+    <view class="link-section">
+      <text class="link-text" bindtap="goToLogin">已有账号？立即登录</text>
+    </view>
+  </view>
+
+  <view class="footer">
+    <text>注册即表示同意服务条款和隐私政策</text>
+  </view>
+</view>
