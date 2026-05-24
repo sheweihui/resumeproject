@@ -140,9 +140,9 @@ const wordAPI = {
     return request(`/word/${id}`, 'GET')
   },
 
-  /** AI 填充单词信息 */
+  /** AI 填充单词信息 (发送原始字符串, 后端 @RequestBody String 接收) */
   aiFillWord: (wordText) => {
-    return request('/word/ai-fill', 'POST', { wordText })
+    return request('/word/ai-fill', 'POST', wordText)
   },
 
   /** 更新单词 */
@@ -254,6 +254,11 @@ const agentRequest = (url, method = 'GET', data = null) => {
       data: data ? JSON.stringify(data) : null,
       header,
       success: (res) => {
+        if (res.statusCode === 401) {
+          handleUnauthorized()
+          reject(new Error('未授权'))
+          return
+        }
         if (res.statusCode === 200) {
           resolve(res.data)
         } else {
@@ -290,11 +295,34 @@ const agentAPI = {
   }
 }
 
+/** 后端直连 AI 对话 API（通过 DeepSeek，无需 Python Agent） */
+const aiAPI = {
+  /** 发送对话消息 */
+  chat: (message, userId = null, conversationId = null) => {
+    return request('/ai/chat', 'POST', {
+      message,
+      userId,
+      conversationId
+    })
+  },
+
+  /** 清空对话 */
+  clearConversation: (convId) => {
+    return request('/ai/clear', 'POST', { conversation_id: convId })
+  },
+
+  /** 健康检查 */
+  health: () => {
+    return request('/ai/health', 'GET')
+  }
+}
+
 module.exports = {
   userAPI,
   wordAPI,
   vocabAPI,
   studyRecordAPI,
   storeAPI,
-  agentAPI
+  agentAPI,
+  aiAPI
 }

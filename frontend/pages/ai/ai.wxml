@@ -18,7 +18,7 @@
         <text class="avatar-icon">{{item.type === 'ai' ? '🤖' : '👤'}}</text>
       </view>
       <view class="message-content">
-        <text>{{item.content}}</text>
+        <view class="msg-text">{{item.content}}</view>
       </view>
       <view wx:if="{{item.type === 'user' && item.failed}}" class="retry-btn" bindtap="retryMessage" data-id="{{item.id}}">
         <text>重新发送</text>
