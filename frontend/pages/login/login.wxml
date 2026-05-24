@@ -7,16 +7,16 @@
 
   <view class="form-section">
     <view class="tab-bar">
-      <view 
-        class="tab-item {{activeTab === 'login' ? 'active' : ''}}" 
-        bindtap="switchTab" 
+      <view
+        class="tab-item {{activeTab === 'login' ? 'active' : ''}}"
+        bindtap="switchTab"
         data-tab="login"
       >
         <text>登录</text>
       </view>
-      <view 
-        class="tab-item {{activeTab === 'register' ? 'active' : ''}}" 
-        bindtap="switchTab" 
+      <view
+        class="tab-item {{activeTab === 'register' ? 'active' : ''}}"
+        bindtap="switchTab"
         data-tab="register"
       >
         <text>注册</text>
@@ -26,20 +26,20 @@
     <view class="form-content" wx:if="{{activeTab === 'login'}}">
       <view class="input-item">
         <text class="input-icon">👤</text>
-        <input 
-          class="input-field" 
-          placeholder="请输入用户名" 
-          value="{{username}}" 
+        <input
+          class="input-field"
+          placeholder="请输入用户名"
+          value="{{username}}"
           bindinput="onUsernameInput"
         />
       </view>
 
       <view class="input-item">
         <text class="input-icon">🔒</text>
-        <input 
-          class="input-field" 
-          placeholder="请输入密码" 
-          value="{{password}}" 
+        <input
+          class="input-field"
+          placeholder="请输入密码"
+          value="{{password}}"
           bindinput="onPasswordInput"
           password="{{!showPassword}}"
         />
@@ -48,7 +48,7 @@
         </text>
       </view>
 
-      <view class="action-btn login-btn" bindtap="login" disabled="{{isLoading}}">
+      <view class="login-btn {{isLoading ? 'disabled' : ''}}" bindtap="login">
         <text>{{isLoading ? '登录中...' : '登 录'}}</text>
       </view>
     </view>
@@ -56,30 +56,30 @@
     <view class="form-content" wx:if="{{activeTab === 'register'}}">
       <view class="input-item">
         <text class="input-icon">👤</text>
-        <input 
-          class="input-field" 
-          placeholder="用户名（3-20个字符）" 
-          value="{{regUsername}}" 
+        <input
+          class="input-field"
+          placeholder="用户名（3-20个字符）"
+          value="{{regUsername}}"
           bindinput="onRegUsernameInput"
         />
       </view>
 
       <view class="input-item">
         <text class="input-icon">🎭</text>
-        <input 
-          class="input-field" 
-          placeholder="昵称（选填）" 
-          value="{{regNickname}}" 
+        <input
+          class="input-field"
+          placeholder="昵称（选填）"
+          value="{{regNickname}}"
           bindinput="onRegNicknameInput"
         />
       </view>
 
       <view class="input-item">
         <text class="input-icon">🔒</text>
-        <input 
-          class="input-field" 
-          placeholder="密码（至少6个字符）" 
-          value="{{regPassword}}" 
+        <input
+          class="input-field"
+          placeholder="密码（至少6个字符）"
+          value="{{regPassword}}"
           bindinput="onRegPasswordInput"
           password="{{!showRegPassword}}"
         />
@@ -90,10 +90,10 @@
 
       <view class="input-item">
         <text class="input-icon">🔑</text>
-        <input 
-          class="input-field" 
-          placeholder="确认密码" 
-          value="{{regConfirmPassword}}" 
+        <input
+          class="input-field"
+          placeholder="确认密码"
+          value="{{regConfirmPassword}}"
           bindinput="onRegConfirmPasswordInput"
           password="{{!showRegConfirmPassword}}"
         />
@@ -102,7 +102,7 @@
         </text>
       </view>
 
-      <view class="action-btn register-btn" bindtap="register" disabled="{{isLoading}}">
+      <view class="register-btn {{isLoading ? 'disabled' : ''}}" bindtap="register">
         <text>{{isLoading ? '注册中...' : '立即注册'}}</text>
       </view>
     </view>

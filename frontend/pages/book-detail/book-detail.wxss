@@ -1,17 +1,17 @@
 .container {
   min-height: 100vh;
-  background: #f5f5f5;
+  background: var(--bg-page);
 }
 
-.header {
+.page-header {
   display: flex;
   align-items: center;
   padding: 60rpx 30rpx 30rpx;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--purple-gradient);
   color: #fff;
 }
 
-.back-btn {
+.header-back {
   width: 60rpx;
   height: 60rpx;
   display: flex;
@@ -20,9 +20,6 @@
   background: rgba(255, 255, 255, 0.2);
   border-radius: 50%;
   margin-right: 20rpx;
-}
-
-.back-icon {
   font-size: 36rpx;
   color: #fff;
 }
@@ -41,9 +38,6 @@
   background: rgba(255, 255, 255, 0.25);
   border-radius: 24rpx;
   font-size: 28rpx;
-}
-
-.batch-btn text {
   color: #fff;
 }
 
@@ -66,7 +60,7 @@
   margin: 20rpx;
   padding: 20rpx 30rpx;
   border-radius: 50rpx;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-sm);
 }
 
 .search-input {
@@ -76,6 +70,7 @@
 
 .search-icon {
   font-size: 32rpx;
+  margin-right: 16rpx;
 }
 
 .word-list {
@@ -87,8 +82,8 @@
   background: #fff;
   margin-bottom: 20rpx;
   padding: 30rpx;
-  border-radius: 20rpx;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .word-item.batch-mode {
@@ -114,8 +109,8 @@
 }
 
 .word-checkbox.checked {
-  background: #667eea;
-  border-color: #667eea;
+  background: var(--purple);
+  border-color: var(--purple);
 }
 
 .check-icon {
@@ -132,6 +127,20 @@
 
 .word-main {
   flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.word-text {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.phonetic {
+  font-size: 26rpx;
+  color: var(--text-muted);
+  margin-left: 16rpx;
 }
 
 .word-actions {
@@ -142,7 +151,7 @@
 .action-btn {
   width: 56rpx;
   height: 56rpx;
-  border-radius: 12rpx;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -151,37 +160,20 @@
 }
 
 .edit-btn {
-  background: #667eea;
+  background: var(--purple);
 }
 
 .delete-btn {
-  background: #f5576c;
+  background: var(--red);
 }
 
 .word-body {
   margin-top: 16rpx;
 }
 
-.word-main {
-  display: flex;
-  align-items: center;
-}
-
-.word-text {
-  font-size: 36rpx;
-  font-weight: 600;
-  color: #333;
-}
-
-.phonetic {
-  font-size: 26rpx;
-  color: #999;
-  margin-left: 16rpx;
-}
-
 .word-definition {
   font-size: 28rpx;
-  color: #666;
+  color: var(--text-secondary);
   margin-top: 12rpx;
 }
 
@@ -203,25 +195,25 @@
   font-size: 100rpx;
 }
 
-.empty-text {
+.empty-title {
   font-size: 30rpx;
-  color: #999;
+  color: var(--text-muted);
   margin-top: 20rpx;
 }
 
-.empty-hint {
+.empty-desc {
   font-size: 26rpx;
   color: #ccc;
   margin-top: 12rpx;
 }
 
-.add-btn {
+.fab-btn {
   position: fixed;
   right: 30rpx;
   bottom: 30rpx;
   width: 100rpx;
   height: 100rpx;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--purple-gradient);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -229,12 +221,13 @@
   box-shadow: 0 8rpx 24rpx rgba(102, 126, 234, 0.4);
 }
 
-.add-icon {
+.fab-icon {
   font-size: 48rpx;
   color: #fff;
   font-weight: 300;
 }
 
+/* Modal */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -267,13 +260,12 @@
 .modal-title {
   font-size: 36rpx;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .modal-close {
   font-size: 48rpx;
-  color: #999;
-  line-height: 1;
+  color: var(--text-muted);
 }
 
 .form-item {
@@ -291,16 +283,21 @@
 
 .form-label {
   font-size: 28rpx;
-  color: #666;
+  color: var(--text-secondary);
   margin-bottom: 12rpx;
   display: block;
+}
+
+.form-label .required {
+  color: var(--red);
+  margin-left: 4rpx;
 }
 
 .form-input {
   width: 100%;
   height: 80rpx;
   background: #f8f9fa;
-  border-radius: 12rpx;
+  border-radius: var(--radius-sm);
   padding: 0 20rpx;
   font-size: 30rpx;
 }
@@ -309,7 +306,7 @@
   width: 100%;
   height: 120rpx;
   background: #f8f9fa;
-  border-radius: 12rpx;
+  border-radius: var(--radius-sm);
   padding: 20rpx;
   font-size: 30rpx;
 }
@@ -317,7 +314,7 @@
 .ai-btn {
   width: 100%;
   height: 88rpx;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: linear-gradient(135deg, #f093fb 0%, var(--red) 100%);
   border-radius: 44rpx;
   color: #fff;
   font-size: 32rpx;
@@ -328,7 +325,7 @@
 .submit-btn {
   width: 100%;
   height: 88rpx;
-  background: linear-gradient(135deg, #5eb97d 0%, #7ed39e 100%);
+  background: var(--green-gradient);
   border-radius: 44rpx;
   color: #fff;
   font-size: 32rpx;
@@ -339,13 +336,14 @@
 .cancel-btn {
   width: 100%;
   height: 88rpx;
-  background: #f5f5f5;
+  background: var(--bg-page);
   border-radius: 44rpx;
-  color: #666;
+  color: var(--text-secondary);
   font-size: 32rpx;
   border: none;
 }
 
+/* Word detail */
 .word-detail-modal {
   position: fixed;
   top: 0;
@@ -362,7 +360,7 @@
 .word-detail-content {
   width: 80%;
   background: #fff;
-  border-radius: 24rpx;
+  border-radius: var(--radius-lg);
   padding: 40rpx;
 }
 
@@ -373,13 +371,13 @@
 .detail-word {
   font-size: 48rpx;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   display: block;
 }
 
 .detail-phonetic {
   font-size: 28rpx;
-  color: #999;
+  color: var(--text-muted);
   margin-top: 12rpx;
   display: block;
 }
@@ -393,11 +391,11 @@
 
 .detail-definition {
   font-size: 32rpx;
-  color: #333;
+  color: var(--text-primary);
   margin-top: 30rpx;
   padding: 20rpx;
   background: #f8f9fa;
-  border-radius: 12rpx;
+  border-radius: var(--radius-sm);
 }
 
 .detail-example {
@@ -406,19 +404,19 @@
 
 .example-label {
   font-size: 26rpx;
-  color: #999;
+  color: var(--text-muted);
 }
 
 .example-text {
   font-size: 28rpx;
-  color: #333;
+  color: var(--text-primary);
   display: block;
   margin-top: 8rpx;
 }
 
 .example-trans {
   font-size: 26rpx;
-  color: #666;
+  color: var(--text-secondary);
   display: block;
   margin-top: 8rpx;
 }
@@ -426,12 +424,13 @@
 .detail-close {
   text-align: center;
   font-size: 30rpx;
-  color: #667eea;
+  color: var(--purple);
   margin-top: 30rpx;
   padding-top: 20rpx;
-  border-top: 1rpx solid #eee;
+  border-top: 1rpx solid var(--border);
 }
 
+/* Batch action bar */
 .batch-action-bar {
   position: fixed;
   left: 0;
@@ -448,20 +447,20 @@
 
 .select-all-btn {
   padding: 20rpx 36rpx;
-  background: #f5f5f5;
+  background: var(--bg-page);
   border-radius: 36rpx;
   margin-right: 24rpx;
 }
 
 .select-all-btn text {
   font-size: 30rpx;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .delete-selected-btn {
   flex: 1;
   height: 96rpx;
-  background: linear-gradient(135deg, #f5576c 0%, #f65a78 100%);
+  background: linear-gradient(135deg, var(--red) 0%, #f65a78 100%);
   border-radius: 48rpx;
   display: flex;
   align-items: center;

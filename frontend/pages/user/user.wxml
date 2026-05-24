@@ -1,7 +1,7 @@
 <view class="container">
   <view class="header">
     <view class="user-card">
-      <view class="avatar-wrap" bindtap="goToProfile">
+      <view class="avatar-wrap">
         <image class="avatar" src="{{userInfo.avatar || '/images/default-avatar.png'}}" mode="aspectFill" />
         <view class="level-badge">{{userInfo.level}}</view>
       </view>
@@ -13,7 +13,7 @@
         </view>
       </view>
     </view>
-    
+
     <view class="progress-card">
       <view class="progress-header">
         <text class="progress-title">单词掌握进度</text>
@@ -22,10 +22,10 @@
       <view class="progress-bar-wrap">
         <view class="progress-bar" style="width: {{progress.percent}}%"></view>
       </view>
-      <view class="progress-percent">{{progress.percent}}%</view>
+      <view class="progress-percent-text">{{progress.percent}}%</view>
     </view>
   </view>
-  
+
   <view class="points-card">
     <view class="points-left">
       <text class="points-label">我的积分</text>
@@ -48,7 +48,7 @@
       </view>
     </view>
   </view>
-  
+
   <view class="stats-grid">
     <view wx:for="{{stats}}" wx:key="label" class="stat-item">
       <text class="stat-value">{{item.value}}</text>
@@ -56,11 +56,11 @@
       <text class="stat-label">{{item.label}}</text>
     </view>
   </view>
-  
+
   <view class="menu-section">
-    <view 
-      wx:for="{{menuItems}}" 
-      wx:key="label" 
+    <view
+      wx:for="{{menuItems}}"
+      wx:key="label"
       class="menu-item"
       bindtap="goToMenuItem"
       data-item="{{item}}"
@@ -70,7 +70,7 @@
       <text wx:if="{{item.badge}}" class="menu-badge">{{item.badge}}</text>
       <text class="menu-arrow">›</text>
     </view>
-    
+
     <view class="menu-item logout-item" bindtap="logout">
       <text class="menu-icon">📤</text>
       <text class="menu-label">退出登录</text>

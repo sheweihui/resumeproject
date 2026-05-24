@@ -173,6 +173,16 @@ const vocabAPI = {
     return request('/vocabulary-book/words', 'GET', { bookId })
   },
 
+  /** 更新单词书 */
+  updateBook: (id, data) => {
+    return request(`/vocabulary-book/${id}`, 'PUT', data)
+  },
+
+  /** 删除单词书 */
+  deleteBook: (id) => {
+    return request(`/vocabulary-book/${id}`, 'DELETE')
+  },
+
   /** 从单词书删除单词 */
   removeWordFromBook: (bookId, wordId) => {
     return request('/vocabulary-book/word/remove', 'DELETE', { bookId, wordId })

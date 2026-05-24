@@ -1,6 +1,5 @@
 const { storeAPI } = require('../../utils/api.js')
 
-/** 商店页 - 积分商店、签到、秒杀活动 */
 Page({
   data: {
     books: [],
@@ -70,7 +69,6 @@ Page({
     }
   },
 
-  /** 加载商店首页数据（积分、书籍、秒杀） */
   async loadData() {
     await Promise.all([
       this.loadPointsBalance(),
@@ -79,7 +77,6 @@ Page({
     ])
   },
 
-  /** 更新秒杀活动状态（未开始/进行中/已结束/售罄） */
   updateFlashSaleStatus(flashSaleList) {
     return flashSaleList.map(item => {
       const status = this.getFlashSaleStatus(item)
@@ -87,7 +84,6 @@ Page({
     })
   },
 
-  /** 加载秒杀活动列表 */
   async loadFlashSaleList() {
     try {
       const res = await storeAPI.getFlashSaleList()
@@ -100,7 +96,6 @@ Page({
         }
       }
     } catch (err) {
-      console.error('loadFlashSaleList error:', err)
       const mockFlashSaleList = [
         {
           id: 1,
@@ -142,28 +137,23 @@ Page({
     }
   },
 
-  /** 启动秒杀倒计时 */
   startCountdown() {
     if (this.data.countdownTimer) {
       clearInterval(this.data.countdownTimer)
     }
-
     const timer = setInterval(() => {
       this.updateCountdown()
     }, 1000)
-
     this.setData({ countdownTimer: timer })
     this.updateCountdown()
   },
 
-  /** 更新倒计时显示 */
   updateCountdown() {
     const { flashSaleList } = this.data
     if (!flashSaleList || flashSaleList.length === 0) return
 
     const now = Date.now()
     let nearestEnd = null
-    let nearestItem = null
 
     flashSaleList.forEach(item => {
       const status = this.getFlashSaleStatus(item)
@@ -171,19 +161,17 @@ Page({
         const endTime = new Date(item.endTime).getTime()
         if (!nearestEnd || endTime < nearestEnd) {
           nearestEnd = endTime
-          nearestItem = item
         }
       }
     })
 
-    if (!nearestItem) {
+    if (!nearestEnd) {
       flashSaleList.forEach(item => {
         const status = this.getFlashSaleStatus(item)
         if (status === 'upcoming') {
           const startTime = new Date(item.startTime).getTime()
           if (!nearestEnd || startTime < nearestEnd) {
             nearestEnd = startTime
-            nearestItem = item
           }
         }
       })
@@ -197,7 +185,6 @@ Page({
     }
 
     const distance = nearestEnd - now
-
     if (distance <= 0) {
       this.loadFlashSaleList()
       return
@@ -216,48 +203,21 @@ Page({
     })
   },
 
-  /** 计算秒杀活动状态 */
   getFlashSaleStatus(item) {
     const now = Date.now()
-    
-    const startDate = new Date(item.startTime)
-    const endDate = new Date(item.endTime)
-    
-    const startTime = startDate.getTime()
-    const endTime = endDate.getTime()
-    
-    console.log('=== 秒杀状态计算 ===')
-    console.log('当前时间:', new Date(now).toISOString())
-    console.log('开始时间:', item.startTime, '/', startTime)
-    console.log('结束时间:', item.endTime, '/', endTime)
-    console.log('库存:', item.stock, ', 已售:', item.soldCount)
+    const startTime = new Date(item.startTime).getTime()
+    const endTime = new Date(item.endTime).getTime()
 
-    if (isNaN(startTime) || isNaN(endTime)) {
-      console.error('日期解析失败')
-      return 'ongoing'
-    }
+    if (isNaN(startTime) || isNaN(endTime)) return 'ongoing'
 
-    if (now < startTime) {
-      console.log('状态: upcoming')
-      return 'upcoming'
-    }
-    if (now > endTime) {
-      console.log('状态: ended')
-      return 'ended'
-    }
-    
+    if (now < startTime) return 'upcoming'
+    if (now > endTime) return 'ended'
+
     const remainingStock = Math.max(0, (item.stock || 0) - (item.soldCount || 0))
-    console.log('剩余库存:', remainingStock)
-    
-    if ((item.stock || 0) <= 0 || remainingStock <= 0) {
-      console.log('状态: soldout')
-      return 'soldout'
-    }
-    console.log('状态: ongoing')
+    if ((item.stock || 0) <= 0 || remainingStock <= 0) return 'soldout'
     return 'ongoing'
   },
 
-  /** 查看秒杀商品详情 */
   showFlashSaleDetail(e) {
     const item = e.currentTarget.dataset.item
     const status = this.getFlashSaleStatus(item)
@@ -267,12 +227,10 @@ Page({
     })
   },
 
-  /** 关闭秒杀详情弹窗 */
   closeFlashSaleModal() {
     this.setData({ showFlashSaleModal: false })
   },
 
-  /** 执行秒杀购买 */
   async purchaseFlashSale() {
     const { currentFlashSale, pointsBalance } = this.data
 
@@ -313,31 +271,22 @@ Page({
       }
     } catch (err) {
       wx.hideLoading()
-      console.error('purchaseFlashSale error:', err)
-      if (err && err.message) {
-        const errorMsg = err.message.replace('秒杀失败: ', '')
-        wx.showToast({ title: errorMsg || '抢购失败', icon: 'none' })
-      } else {
-        wx.showToast({ title: '抢购失败，请重试', icon: 'none' })
-      }
+      const errorMsg = err?.message?.replace('秒杀失败: ', '') || '抢购失败'
+      wx.showToast({ title: errorMsg, icon: 'none' })
     }
   },
 
-  /** 加载用户积分余额 */
   async loadPointsBalance() {
     try {
       const res = await storeAPI.getPointsBalance()
       if (res.code === 200) {
-        this.setData({
-          pointsBalance: res.data
-        })
+        this.setData({ pointsBalance: res.data })
       }
     } catch (err) {
-      console.error('loadPointsBalance error:', err)
+      console.error(err)
     }
   },
 
-  /** 加载商店单词书列表 */
   async loadBooks() {
     try {
       this.setData({ loading: true })
@@ -345,16 +294,10 @@ Page({
         category: this.data.activeCategory === 'all' ? '' : this.data.activeCategory,
         sortBy: this.data.sortBy
       }
-      console.log('加载书籍参数:', params)
       const res = await storeAPI.getBooks(params)
-      console.log('书籍响应:', res)
-      console.log('响应码:', res?.code)
-      console.log('响应数据:', res?.data)
-      console.log('records:', res?.data?.records)
-      
+
       if (res && res.code === 200) {
         const books = res.data?.records || res.data || []
-        console.log('最终书籍列表:', books)
         this.setData({
           books: books,
           filteredBooks: this.filterBooks(books)
@@ -362,35 +305,28 @@ Page({
       }
     } catch (err) {
       wx.showToast({ title: '加载失败', icon: 'none' })
-      console.error('loadBooks error:', err)
     } finally {
       this.setData({ loading: false })
     }
   },
 
-  /** 刷新商店所有数据 */
   async refreshAll() {
     try {
       wx.showLoading({ title: '刷新中...' })
-      await Promise.all([
-        this.loadBooks(),
-        this.loadFlashSaleList()
-      ])
+      await Promise.all([this.loadBooks(), this.loadFlashSaleList()])
       wx.hideLoading()
       wx.showToast({ title: '刷新成功', icon: 'success' })
     } catch (err) {
       wx.hideLoading()
       wx.showToast({ title: '刷新失败', icon: 'none' })
-      console.error('refreshAll error:', err)
     }
   },
 
-  /** 过滤书籍列表（按搜索关键词） */
   filterBooks(books) {
     let result = books || []
     if (this.data.searchKeyword) {
       const keyword = this.data.searchKeyword.toLowerCase()
-      result = result.filter(book => 
+      result = result.filter(book =>
         book.bookName && book.bookName.toLowerCase().includes(keyword) ||
         book.description && book.description.toLowerCase().includes(keyword)
       )
@@ -398,23 +334,16 @@ Page({
     return result
   },
 
-  /** 执行每日签到 */
   async checkin() {
     try {
       wx.showLoading({ title: '签到中...' })
       const res = await storeAPI.checkin()
       wx.hideLoading()
-      
-      console.log('签到响应:', res)
-      console.log('响应码:', res.code)
-      console.log('响应消息:', res.message)
-      
+
       if (res && res.code === 200) {
         const data = res.data || {}
         const { checkedIn, pointsEarned, continuousDays, bonusPoints } = data
-        
-        console.log('checkedIn:', checkedIn)
-        
+
         if (checkedIn) {
           let message = `签到成功！获得${pointsEarned}积分`
           if (bonusPoints > 0) {
@@ -423,10 +352,7 @@ Page({
           wx.showToast({ title: message, icon: 'success', duration: 2000 })
           this.loadPointsBalance()
           this.setData({
-            checkinInfo: {
-              checkedIn: true,
-              continuousDays: continuousDays
-            }
+            checkinInfo: { checkedIn: true, continuousDays: continuousDays }
           })
         } else {
           wx.showToast({ title: res.message || '今日已签到', icon: 'none', duration: 2000 })
@@ -437,47 +363,37 @@ Page({
     } catch (err) {
       wx.hideLoading()
       wx.showToast({ title: '签到失败', icon: 'none' })
-      console.error('checkin error:', err)
     }
   },
 
   onSearchInput(e) {
     const keyword = e.detail.value
     this.setData({ searchKeyword: keyword })
-    // 实时过滤书籍
     const filteredBooks = this.filterBooks(this.data.books)
     this.setData({ filteredBooks })
   },
 
-  /** 切换分类筛选 */
   switchCategory(e) {
     const categoryId = e.currentTarget.dataset.categoryId
     this.setData({ activeCategory: categoryId })
     this.loadBooks()
   },
 
-  /** 切换排序方式 */
   switchSort(e) {
     const sortId = e.currentTarget.dataset.sortId
     this.setData({ sortBy: sortId })
     this.loadBooks()
   },
 
-  /** 查看书籍详情弹窗 */
   showBookDetail(e) {
     const book = e.currentTarget.dataset.book
-    this.setData({
-      selectedBook: book,
-      showDetailModal: true
-    })
+    this.setData({ selectedBook: book, showDetailModal: true })
   },
 
-  /** 关闭书籍详情弹窗 */
   closeDetailModal() {
     this.setData({ showDetailModal: false })
   },
 
-  /** 打开购买确认弹窗 */
   buyBook(e) {
     const book = e.currentTarget.dataset.book
     this.setData({
@@ -487,7 +403,6 @@ Page({
     })
   },
 
-  /** 跳转单词书预览页 */
   previewBook(e) {
     const book = e.currentTarget.dataset.book
     wx.navigateTo({
@@ -495,33 +410,23 @@ Page({
     })
   },
 
-  /** 关闭订单弹窗 */
   closeOrderModal() {
     this.setData({ showOrderModal: false })
   },
 
-  /** 提交购买订单 */
   async submitOrder() {
     const { orderBook, pointsBalance } = this.data
-    
-    console.log('订单信息:', orderBook)
-    console.log('当前积分:', pointsBalance.balance)
-    console.log('书籍价格:', orderBook.price)
-    
+
     if (pointsBalance.balance < orderBook.price) {
       wx.showToast({ title: '积分不足', icon: 'none' })
       return
     }
-    
+
     try {
       wx.showLoading({ title: '购买中...' })
-      
-      console.log('发起购买请求, bookId:', orderBook.id)
       const res = await storeAPI.purchaseBook(orderBook.id)
-      console.log('购买响应:', res)
-      
       wx.hideLoading()
-      
+
       if (res.code === 200) {
         wx.showModal({
           title: '购买成功',
@@ -538,10 +443,6 @@ Page({
     } catch (err) {
       wx.hideLoading()
       wx.showToast({ title: '购买失败', icon: 'none' })
-      console.error('purchaseBook error:', err)
     }
-  },
-
-  /** 阻止事件冒泡 */
-  preventBubble() {}
+  }
 })

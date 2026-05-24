@@ -1,6 +1,6 @@
 .container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #4a90d9 0%, #67b8f7 100%);
+  background: var(--primary-gradient);
   padding: 40rpx;
   padding-top: 80rpx;
   display: flex;
@@ -34,14 +34,13 @@
 .form-section {
   background: #fff;
   border-radius: 20rpx;
-  padding: 0;
   margin-bottom: 40rpx;
   overflow: hidden;
 }
 
 .tab-bar {
   display: flex;
-  border-bottom: 1rpx solid #f0f0f0;
+  border-bottom: 1rpx solid var(--border);
 }
 
 .tab-item {
@@ -55,12 +54,12 @@
 
 .tab-item text {
   font-size: 32rpx;
-  color: #999;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .tab-item.active text {
-  color: #4a90d9;
+  color: var(--primary);
   font-weight: 600;
 }
 
@@ -72,7 +71,7 @@
   transform: translateX(-50%);
   width: 60rpx;
   height: 4rpx;
-  background: #4a90d9;
+  background: var(--primary);
   border-radius: 2rpx;
 }
 
@@ -84,7 +83,7 @@
   display: flex;
   align-items: center;
   padding: 20rpx 0;
-  border-bottom: 1rpx solid #f0f0f0;
+  border-bottom: 1rpx solid var(--border);
   margin-bottom: 10rpx;
 }
 
@@ -96,7 +95,7 @@
 .input-field {
   flex: 1;
   font-size: 32rpx;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .toggle-btn {
@@ -104,39 +103,45 @@
   padding: 10rpx;
 }
 
-.action-btn {
+.login-btn {
   margin-top: 40rpx;
   height: 96rpx;
   border-radius: 48rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.action-btn text {
-  font-size: 34rpx;
-  font-weight: 600;
-}
-
-.login-btn {
-  background: linear-gradient(135deg, #4a90d9 0%, #67b8f7 100%);
+  background: var(--primary-gradient);
   box-shadow: 0 8rpx 24rpx rgba(74, 144, 217, 0.4);
 }
 
 .login-btn text {
+  font-size: 34rpx;
+  font-weight: 600;
   color: #fff;
 }
 
+.login-btn.disabled {
+  opacity: 0.6;
+}
+
 .register-btn {
-  background: linear-gradient(135deg, #5eb97d 0%, #7ed6a5 100%);
+  margin-top: 40rpx;
+  height: 96rpx;
+  border-radius: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--green-gradient);
   box-shadow: 0 8rpx 24rpx rgba(94, 185, 125, 0.4);
 }
 
 .register-btn text {
+  font-size: 34rpx;
+  font-weight: 600;
   color: #fff;
 }
 
-.action-btn[disabled] {
+.register-btn.disabled {
   opacity: 0.6;
 }
 
@@ -144,12 +149,12 @@
   display: flex;
   justify-content: center;
   padding: 30rpx;
-  border-top: 1rpx solid #f0f0f0;
+  border-top: 1rpx solid var(--border);
 }
 
 .other-options text {
   font-size: 26rpx;
-  color: #999;
+  color: var(--text-muted);
 }
 
 .footer {

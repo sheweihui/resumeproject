@@ -1,8 +1,6 @@
 <view class="container">
-  <view class="header">
-    <view class="header-content">
-      <text class="page-title">积分商店</text>
-    </view>
+  <view class="page-header">
+    <text class="page-title">积分商店</text>
     <view class="header-right">
       <view class="points-info" bindtap="refreshAll">
         <text class="points-icon">⭐</text>

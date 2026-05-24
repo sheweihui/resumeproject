@@ -1,17 +1,17 @@
 .container {
   min-height: 100vh;
-  background: #f5f5f5;
+  background: var(--bg-page);
 }
 
-.header {
+.page-header {
   display: flex;
   align-items: center;
   padding: 60rpx 30rpx 30rpx;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--purple-gradient);
   color: #fff;
 }
 
-.back-btn {
+.header-back {
   width: 60rpx;
   height: 60rpx;
   display: flex;
@@ -20,9 +20,6 @@
   background: rgba(255, 255, 255, 0.2);
   border-radius: 50%;
   margin-right: 20rpx;
-}
-
-.back-icon {
   font-size: 36rpx;
   color: #fff;
 }
@@ -50,7 +47,7 @@
   margin: 20rpx;
   padding: 20rpx 30rpx;
   border-radius: 50rpx;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-sm);
 }
 
 .search-input {
@@ -60,6 +57,7 @@
 
 .search-icon {
   font-size: 32rpx;
+  margin-right: 16rpx;
 }
 
 .word-list {
@@ -71,8 +69,8 @@
   background: #fff;
   margin-bottom: 20rpx;
   padding: 30rpx;
-  border-radius: 20rpx;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .word-header {
@@ -90,18 +88,18 @@
 .word-text {
   font-size: 36rpx;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   margin-right: 20rpx;
 }
 
 .phonetic {
   font-size: 26rpx;
-  color: #999;
+  color: var(--text-muted);
 }
 
 .word-part {
   font-size: 26rpx;
-  color: #6366f1;
+  color: var(--purple);
   background: rgba(99, 102, 241, 0.1);
   padding: 6rpx 16rpx;
   border-radius: 8rpx;
@@ -113,20 +111,20 @@
 
 .word-definition {
   font-size: 30rpx;
-  color: #333;
+  color: var(--text-primary);
   line-height: 1.5;
 }
 
 .word-example {
   background: #f8f8f8;
   padding: 20rpx;
-  border-radius: 12rpx;
+  border-radius: var(--radius-sm);
   margin-top: 16rpx;
 }
 
 .example-sentence {
   font-size: 28rpx;
-  color: #666;
+  color: var(--text-secondary);
   font-style: italic;
   display: block;
   margin-bottom: 8rpx;
@@ -134,7 +132,7 @@
 
 .example-translation {
   font-size: 26rpx;
-  color: #999;
+  color: var(--text-muted);
   display: block;
 }
 
@@ -153,7 +151,7 @@
 
 .empty-text {
   font-size: 30rpx;
-  color: #999;
+  color: var(--text-muted);
   margin-bottom: 16rpx;
 }
 
@@ -163,5 +161,5 @@
   justify-content: center;
   padding: 100rpx 0;
   font-size: 28rpx;
-  color: #999;
+  color: var(--text-muted);
 }

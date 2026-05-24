@@ -7,12 +7,12 @@ page {
   min-height: 100vh;
 }
 
-.header {
+.page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 60rpx 32rpx 24rpx;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+  background: linear-gradient(135deg, var(--purple) 0%, #8b5cf6 50%, #a855f7 100%);
 }
 
 .page-title {
@@ -20,12 +20,6 @@ page {
   font-weight: 700;
   color: #fff;
   text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .header-right {
