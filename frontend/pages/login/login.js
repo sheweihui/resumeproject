@@ -158,7 +158,7 @@ Page({
       wx.showToast({ title: '注册成功，请登录', icon: 'success' })
 
       setTimeout(() => {
-        this.setData({ showRegister: false })
+        this.setData({ activeTab: 'login' })
       }, 1500)
     } catch (err) {
       wx.showToast({ title: err.message || '注册失败', icon: 'none' })

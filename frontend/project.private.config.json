@@ -1,6 +1,6 @@
 {
   "libVersion": "3.10.0",
-  "projectname": "miniprogram-3",
+  "projectname": "frontend",
   "setting": {
     "urlCheck": false,
     "coverView": true,

@@ -1,8 +1,17 @@
 <view class="container">
-  <view class="chat-area">
-    <view 
-      wx:for="{{messages}}" 
-      wx:key="id" 
+  <view class="header">
+    <text class="header-title">AI 学习助手</text>
+    <view class="header-actions">
+      <view class="header-btn" bindtap="clearChat">
+        <text class="header-btn-icon">🗑️</text>
+      </view>
+    </view>
+  </view>
+
+  <scroll-view class="chat-area" scroll-y scroll-into-view="{{toView}}" scroll-with-animation>
+    <view
+      wx:for="{{messages}}"
+      wx:key="id"
       class="message-item {{item.type}}"
     >
       <view class="avatar">
@@ -11,18 +20,23 @@
       <view class="message-content">
         <text>{{item.content}}</text>
       </view>
+      <view wx:if="{{item.type === 'user' && item.failed}}" class="retry-btn" bindtap="retryMessage" data-id="{{item.id}}">
+        <text>重新发送</text>
+      </view>
     </view>
-    
+
     <view wx:if="{{isLoading}}" class="loading">
       <view class="loading-dot"></view>
       <view class="loading-dot"></view>
       <view class="loading-dot"></view>
     </view>
-  </view>
-  
-  <view class="quick-actions">
-    <view 
-      wx:for="['帮我查一个单词', '推荐今天学习的单词', '测试我的词汇量', '解释这个句子']" 
+
+    <view id="bottom"></view>
+  </scroll-view>
+
+  <view class="quick-actions" wx:if="{{messages.length <= 2}}">
+    <view
+      wx:for="['帮我查一个单词', '推荐今天学习的单词', '测试我的词汇量', '解释这个句子']"
       wx:key="index"
       class="action-item"
       bindtap="quickAction"
@@ -31,16 +45,16 @@
       {{item}}
     </view>
   </view>
-  
+
   <view class="input-area">
-    <input 
-      class="input-box" 
-      placeholder="输入你的问题..." 
+    <input
+      class="input-box"
+      placeholder="输入你的问题..."
       value="{{inputText}}"
       bindinput="onInput"
       bindconfirm="sendMessage"
     />
-    <view class="send-btn" bindtap="sendMessage">
+    <view class="send-btn {{inputText.trim() ? '' : 'disabled'}}" bindtap="sendMessage">
       <text>发送</text>
     </view>
   </view>

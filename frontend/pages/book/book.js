@@ -194,7 +194,7 @@ Page({
 
   /** 提交添加单词 */
   async submitAddWord() {
-    const { selectedBookId, wordForm, aiFilled } = this.data
+    const { selectedBookId, wordForm } = this.data
 
     if (!selectedBookId) {
       wx.showToast({ title: '请选择单词书', icon: 'none' })
@@ -208,11 +208,6 @@ Page({
 
     if (!wordForm.definition.trim()) {
       wx.showToast({ title: '请输入释义', icon: 'none' })
-      return
-    }
-
-    if (!aiFilled) {
-      wx.showToast({ title: '请先使用AI代填', icon: 'none' })
       return
     }
 

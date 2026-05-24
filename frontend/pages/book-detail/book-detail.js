@@ -7,6 +7,7 @@ Page({
     bookName: '',
     words: [],
     filteredWords: [],
+    loading: false,
     searchKeyword: '',
     showModal: false,
     showWordDetail: false,
@@ -54,18 +55,18 @@ Page({
   /** 加载单词书中的单词列表 */
   loadWords() {
     if (!this.data.bookId) return
-    
+
+    this.setData({ loading: true })
     vocabAPI.getWordsByBook(this.data.bookId).then(res => {
-      console.log('getWordsByBook result:', res)
       const words = res && res.code === 200 ? res.data : []
-      console.log('words array:', words)
       this.setData({
         words: words,
-        filteredWords: words
+        filteredWords: words,
+        loading: false
       })
     }).catch(err => {
       console.error('loadWords error:', err)
-      this.setData({ words: [], filteredWords: [] })
+      this.setData({ words: [], filteredWords: [], loading: false })
     })
   },
 
@@ -177,7 +178,7 @@ Page({
 
   /** 提交添加单词 */
   async submitAddWord() {
-    const { bookId, wordForm, aiFilled } = this.data
+    const { bookId, wordForm } = this.data
 
     if (!wordForm.wordText.trim()) {
       wx.showToast({ title: '请输入单词', icon: 'none' })
@@ -186,11 +187,6 @@ Page({
 
     if (!wordForm.definition.trim()) {
       wx.showToast({ title: '请输入释义', icon: 'none' })
-      return
-    }
-
-    if (!aiFilled) {
-      wx.showToast({ title: '请先使用AI代填', icon: 'none' })
       return
     }
 
@@ -383,15 +379,15 @@ Page({
         if (res.confirm) {
           try {
             wx.showLoading({ title: '删除中...' })
-            
+
             const wordIds = Object.keys(selectedWords).map(id => parseInt(id))
-            
-            for (const wordId of wordIds) {
-              await vocabAPI.removeWordFromBook(bookId, wordId)
-            }
-            
+
+            await Promise.all(wordIds.map(wordId =>
+              vocabAPI.removeWordFromBook(bookId, wordId)
+            ))
+
             wx.hideLoading()
-            wx.showToast({ title: '批量删除成功', icon: 'success' })
+            wx.showToast({ title: `成功删除 ${wordIds.length} 个单词`, icon: 'success' })
             this.setData({
               batchMode: false,
               selectedWords: {},

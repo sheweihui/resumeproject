@@ -137,10 +137,10 @@
             data-field="exampleTranslation"
           />
         </view>
-        <view class="form-item" wx:if="{{aiFilled}}">
+        <view class="form-item">
           <view class="add-word-btn" bindtap="submitAddWord">
             <text class="btn-icon">+</text>
-            <text class="btn-text">添加到单词书</text>
+            <text class="btn-text">{{aiFilled ? '添加到单词书' : '直接添加'}}</text>
           </view>
         </view>
       </scroll-view>

@@ -25,6 +25,15 @@
   </view>
 
   <scroll-view class="word-list" scroll-y>
+    <view wx:if="{{loading}}" class="empty-state">
+      <text class="empty-icon">📖</text>
+      <text class="empty-text">加载中...</text>
+    </view>
+    <view wx:elif="{{filteredWords.length === 0}}" class="empty-state">
+      <text class="empty-icon">📚</text>
+      <text class="empty-text">{{ searchKeyword ? '未找到匹配的单词' : '单词书还没有单词' }}</text>
+      <text class="empty-hint">点击右下角添加单词</text>
+    </view>
     <view class="word-item {{ batchMode ? 'batch-mode' : '' }}" wx:for="{{ filteredWords }}" wx:key="id">
       <view class="word-checkbox-wrapper" wx:if="{{ batchMode }}" bindtap="toggleWordSelection" data-word="{{ item }}">
         <view class="word-checkbox {{selectedWords[item.id ? item.id : index] ? 'checked' : ''}}">
@@ -47,11 +56,6 @@
       </view>
     </view>
 
-    <view class="empty-state" wx:if="{{ filteredWords.length === 0 }}">
-      <text class="empty-icon">📚</text>
-      <text class="empty-text">{{ searchKeyword ? '未找到匹配的单词' : '单词书还没有单词' }}</text>
-      <text class="empty-hint">点击右下角添加单词</text>
-    </view>
   </scroll-view>
 
   <view class="add-btn" bindtap="showAddWordModal" wx:if="{{ !batchMode }}">
@@ -145,8 +149,8 @@
         <button class="ai-btn" bindtap="aiFillWord">✨ AI代填</button>
       </view>
 
-      <view class="form-item" wx:if="{{ aiFilled }}">
-        <button class="submit-btn" bindtap="submitAddWord">添加到单词书</button>
+      <view class="form-item">
+        <button class="submit-btn" bindtap="submitAddWord">{{ aiFilled ? '添加到单词书' : '直接添加' }}</button>
       </view>
 
       <view class="form-item">

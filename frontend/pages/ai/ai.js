@@ -13,7 +13,9 @@ Page({
     isLoading: false,
     conversationId: null,
     isLoggedIn: false,
-    agentOnline: false
+    agentOnline: false,
+    toView: 'bottom',
+    failedMessages: {}
   },
 
   onLoad() {
@@ -34,17 +36,19 @@ Page({
       .then(res => {
         if (res.status === 'ok') {
           this.setData({ agentOnline: true })
-          console.log('✅ Agent 服务在线, LLM:', res.llm_ready ? '已配置' : '本地模式')
         }
       })
       .catch(() => {
         this.setData({ agentOnline: false })
-        console.warn('⚠️ Agent 服务未连接，使用本地回退')
       })
   },
 
+  scrollToBottom() {
+    this.setData({ toView: 'bottom' })
+  },
+
   sendMessage() {
-    if (!this.data.inputText.trim()) return
+    if (!this.data.inputText.trim() || this.data.isLoading) return
 
     const token = wx.getStorageSync('token')
     if (!token) {
@@ -70,18 +74,20 @@ Page({
       messages: [...this.data.messages, newMessage],
       inputText: '',
       isLoading: true
+    }, () => {
+      this.scrollToBottom()
     })
 
-    this.callAgent(newMessage.content)
+    this.callAgent(newMessage.content, newMessage.id)
   },
 
-  async callAgent(question) {
+  async callAgent(question, messageId) {
     try {
       const userInfo = wx.getStorageSync('userInfo')
+      let res
 
       if (this.data.agentOnline) {
-        console.log('🤖 调用 Agent 对话服务...')
-        const res = await agentAPI.chat(question, userInfo?.id, this.data.conversationId)
+        res = await agentAPI.chat(question, userInfo?.id, this.data.conversationId)
 
         const aiReply = {
           id: Date.now() + 1,
@@ -93,15 +99,41 @@ Page({
           messages: [...this.data.messages, aiReply],
           isLoading: false,
           conversationId: res.conversation_id
+        }, () => {
+          this.scrollToBottom()
         })
       } else {
-        console.log('⚠️ Agent 离线，降级到后端查词')
         await this.callAIFillWord(question)
       }
     } catch (err) {
-      console.error('Agent 调用失败，降级处理:', err)
+      console.error('Agent 调用失败:', err)
+      // 标记失败消息
+      const { messages } = this.data
+      const updatedMessages = messages.map(msg =>
+        msg.id === messageId ? { ...msg, failed: true } : msg
+      )
+      this.setData({ messages: updatedMessages })
       await this.callAIFillWord(question)
     }
+  },
+
+  retryMessage(e) {
+    const id = e.currentTarget.dataset.id
+    const { messages } = this.data
+    const failedMsg = messages.find(m => m.id === id)
+    if (!failedMsg) return
+
+    const updatedMessages = messages.map(m =>
+      m.id === id ? { ...m, failed: false } : m
+    )
+    this.setData({
+      messages: updatedMessages,
+      isLoading: true
+    }, () => {
+      this.scrollToBottom()
+    })
+
+    this.callAgent(failedMsg.content, id)
   },
 
   async callAIFillWord(wordText) {
@@ -111,7 +143,9 @@ Page({
       if (res && res.code === 200 && res.data && res.data.wordText) {
         const content = this.formatWordResponse(res.data)
         const aiReply = { id: Date.now() + 1, type: 'ai', content }
-        this.setData({ messages: [...this.data.messages, aiReply], isLoading: false })
+        this.setData({ messages: [...this.data.messages, aiReply], isLoading: false }, () => {
+          this.scrollToBottom()
+        })
       } else {
         this.showFallbackMessage()
       }
@@ -143,7 +177,9 @@ Page({
       type: 'ai',
       content: '暂时无法连接到AI服务，请确保后端和Agent服务都已启动。你可以稍后重试。'
     }
-    this.setData({ messages: [...this.data.messages, aiReply], isLoading: false })
+    this.setData({ messages: [...this.data.messages, aiReply], isLoading: false }, () => {
+      this.scrollToBottom()
+    })
   },
 
   clearChat() {

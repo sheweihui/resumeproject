@@ -1,6 +1,18 @@
 <view class="container">
   <view class="header">
-    <text class="page-title">📚 商店</text>
+    <view class="header-content">
+      <text class="page-title">积分商店</text>
+    </view>
+    <view class="header-right">
+      <view class="points-info" bindtap="refreshAll">
+        <text class="points-icon">⭐</text>
+        <text class="points-balance">{{pointsBalance.balance}}</text>
+      </view>
+      <view class="checkin-btn {{checkinInfo.checkedIn ? 'checked-in' : ''}}" bindtap="checkin">
+        <text class="checkin-icon">{{checkinInfo.checkedIn ? '✅' : '📅'}}</text>
+        <text class="checkin-text">{{checkinInfo.checkedIn ? '已签到' : '签到'}}</text>
+      </view>
+    </view>
   </view>
 
   <view class="search-bar">
@@ -104,7 +116,14 @@
 
   <scroll-view class="book-list" scroll-y>
     <view wx:if="{{loading}}" class="loading">
-      <text>加载中...</text>
+      <view wx:for="{{3}}" wx:key="index" class="skeleton-card">
+        <view class="skeleton-cover"></view>
+        <view class="skeleton-info">
+          <view class="skeleton-line medium"></view>
+          <view class="skeleton-line short"></view>
+          <view class="skeleton-line"></view>
+        </view>
+      </view>
     </view>
     <view wx:elif="{{filteredBooks.length === 0}}" class="empty-state">
       <text class="empty-icon">📚</text>
