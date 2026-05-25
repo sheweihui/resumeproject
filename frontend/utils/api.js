@@ -1,7 +1,5 @@
 /** 后端 API 基础地址 */
 const API_BASE_URL = 'http://localhost:8080/api'
-/** Agent 服务基础地址（通过后端转发） */
-const AGENT_API_BASE_URL = 'http://localhost:8080/api'
 
 /**
  * 编码表单数据为 URL query string
@@ -42,8 +40,9 @@ const handleUnauthorized = () => {
  * @param {string} method - HTTP 方法
  * @param {object|null} data - 请求数据
  * @param {boolean} needAuth - 是否需要认证
+ * @param {boolean} raw - 直接返回 res.data 跳过 code 检查（用于非标准响应格式）
  */
-const request = (url, method = 'GET', data = null, needAuth = true) => {
+const request = (url, method = 'GET', data = null, needAuth = true, raw = false) => {
   return new Promise((resolve, reject) => {
     const header = {}
 
@@ -79,6 +78,11 @@ const request = (url, method = 'GET', data = null, needAuth = true) => {
         }
 
         if (res.statusCode === 200) {
+          if (raw) {
+            resolve(res.data)
+            return
+          }
+
           if (res.data.code === 401) {
             handleUnauthorized()
             reject(new Error('未授权'))
@@ -243,44 +247,15 @@ const storeAPI = {
     return request('/store/flash-sale/list', 'GET')
   },
 
-  /** 秒杀购买 */
-  purchaseFlashSale: (id) => {
-    return request(`/store/flash-sale/purchase/${id}`, 'POST')
+  /** 秒杀购买 — 把秒杀价也传过去，后端按这个扣积分 */
+  purchaseFlashSale: (id, flashPrice) => {
+    return request(`/store/flash-sale/purchase/${id}`, 'POST', { flashPrice })
   }
 }
 
-/** Agent 服务请求（通过后端转发） */
+/** Agent 服务请求（通过后端转发，跳过标准 code 检查） */
 const agentRequest = (url, method = 'GET', data = null) => {
-  return new Promise((resolve, reject) => {
-    const header = { 'Content-Type': 'application/json' }
-    const token = wx.getStorageSync('token')
-    if (token) {
-      header['Authorization'] = `Bearer ${token}`
-    }
-
-    wx.request({
-      url: `${AGENT_API_BASE_URL}${url}`,
-      method,
-      data: data ? JSON.stringify(data) : null,
-      header,
-      success: (res) => {
-        if (res.statusCode === 401) {
-          handleUnauthorized()
-          reject(new Error('未授权'))
-          return
-        }
-        if (res.statusCode === 200) {
-          resolve(res.data)
-        } else {
-          reject(res)
-        }
-      },
-      fail: (err) => {
-        console.error('Agent 请求失败:', err)
-        reject(err)
-      }
-    })
-  })
+  return request(url, method, data, true, true)
 }
 
 /** AI 对话 API */

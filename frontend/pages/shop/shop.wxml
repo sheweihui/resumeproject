@@ -1,15 +1,20 @@
 <view class="container">
-  <view class="page-header">
-    <text class="page-title">积分商店</text>
-    <view class="header-right">
-      <view class="points-info" bindtap="refreshAll">
-        <text class="points-icon">⭐</text>
-        <text class="points-balance">{{pointsBalance.balance}}</text>
+  <view class="page-header page-header-pink">
+    <view class="page-header-top">
+      <text class="page-title">积分商店</text>
+      <view class="header-right">
+        <view class="points-info" bindtap="refreshAll">
+          <text class="points-icon">⭐</text>
+          <text class="points-balance">{{pointsBalance.balance}}</text>
+        </view>
+        <view class="checkin-btn {{checkinInfo.checkedIn ? 'checked-in' : ''}}" bindtap="checkin">
+          <text class="checkin-icon">{{checkinInfo.checkedIn ? '✅' : '📅'}}</text>
+          <text class="checkin-text">{{checkinInfo.checkedIn ? '已签到' : '签到'}}</text>
+        </view>
       </view>
-      <view class="checkin-btn {{checkinInfo.checkedIn ? 'checked-in' : ''}}" bindtap="checkin">
-        <text class="checkin-icon">{{checkinInfo.checkedIn ? '✅' : '📅'}}</text>
-        <text class="checkin-text">{{checkinInfo.checkedIn ? '已签到' : '签到'}}</text>
-      </view>
+    </view>
+    <view class="page-header-wave">
+      <text style="font-size:80rpx;color:rgba(255,255,255,0.12);letter-spacing:-4rpx">~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</text>
     </view>
   </view>
 
@@ -176,6 +181,7 @@
 
   <view class="modal-overlay" wx:if="{{showDetailModal}}" bindtap="closeDetailModal">
     <view class="modal-content detail-modal" catchtap>
+      <view class="modal-handle"></view>
       <view class="modal-header">
         <text class="modal-title">单词书详情</text>
         <view class="modal-close" bindtap="closeDetailModal">×</view>
@@ -226,11 +232,11 @@
         </view>
       </scroll-view>
       <view class="modal-footer">
-        <view class="footer-btn cancel" bindtap="closeDetailModal">关闭</view>
-        <view class="footer-btn preview" bindtap="previewBook" data-book="{{selectedBook}}">预览单词</view>
-        <view 
-          class="footer-btn confirm {{selectedBook.isPurchased ? 'disabled' : ''}}" 
-          bindtap="buyBook"
+        <view class="btn btn-ghost btn-block" catchtap="closeDetailModal">关闭</view>
+        <view class="btn btn-outline btn-block" bindtap="previewBook" data-book="{{selectedBook}}">预览单词</view>
+        <view
+          class="btn btn-purple btn-block {{selectedBook.isPurchased ? 'btn-ghost' : ''}}"
+          catchtap="buyBook"
           data-book="{{selectedBook}}"
         >
           {{selectedBook.isPurchased ? '已拥有' : '立即购买'}}
@@ -241,6 +247,7 @@
 
   <view class="modal-overlay" wx:if="{{showOrderModal}}" bindtap="closeOrderModal">
     <view class="modal-content order-modal" catchtap>
+      <view class="modal-handle"></view>
       <view class="modal-header">
         <text class="modal-title">确认购买</text>
         <view class="modal-close" bindtap="closeOrderModal">×</view>
@@ -266,10 +273,10 @@
         </view>
       </view>
       <view class="modal-footer">
-        <view class="footer-btn cancel" bindtap="closeOrderModal">取消</view>
-        <view 
-          class="footer-btn confirm {{pointsBalance.balance < orderBook.price ? 'disabled' : ''}}" 
-          bindtap="submitOrder"
+        <view class="btn btn-ghost btn-block" catchtap="closeOrderModal">取消</view>
+        <view
+          class="btn btn-purple btn-block {{pointsBalance.balance < orderBook.price ? 'btn-ghost' : ''}}"
+          catchtap="submitOrder"
         >
           确认购买
         </view>
@@ -279,6 +286,7 @@
 
   <view class="modal-overlay" wx:if="{{showFlashSaleModal}}" bindtap="closeFlashSaleModal">
     <view class="modal-content flash-sale-modal" catchtap>
+      <view class="modal-handle"></view>
       <view class="modal-header flash-header">
         <text class="modal-title">⚡ 秒杀详情</text>
         <view class="modal-close" bindtap="closeFlashSaleModal">×</view>
@@ -342,10 +350,10 @@
         </view>
       </scroll-view>
       <view class="modal-footer">
-        <view class="footer-btn cancel" bindtap="closeFlashSaleModal">关闭</view>
-        <view 
-          class="footer-btn flash-buy-btn {{currentFlashSale.currentStatus !== 'ongoing' || pointsBalance.balance < currentFlashSale.flashPrice ? 'disabled' : ''}}" 
-          bindtap="purchaseFlashSale"
+        <view class="btn btn-ghost btn-block" catchtap="closeFlashSaleModal">关闭</view>
+        <view
+          class="btn btn-block {{currentFlashSale.currentStatus === 'ongoing' && pointsBalance.balance >= currentFlashSale.flashPrice ? 'btn-danger' : 'btn-ghost'}}"
+          catchtap="purchaseFlashSale"
         >
           <text wx:if="{{currentFlashSale.currentStatus === 'upcoming'}}">活动未开始</text>
           <text wx:elif="{{currentFlashSale.currentStatus === 'ended'}}">活动已结束</text>

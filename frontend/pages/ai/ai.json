@@ -1,5 +1,5 @@
 {
   "navigationBarTitleText": "AI助手",
-  "navigationBarTextStyle": "black",
-  "navigationBarBackgroundColor": "#ffffff"
+  "navigationStyle": "custom",
+  "navigationBarTextStyle": "white"
 }

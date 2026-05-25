@@ -1,5 +1,5 @@
 const { userAPI, vocabAPI, studyRecordAPI, storeAPI } = require('../../utils/api')
-const { getUserInfo, calculateLevel } = require('../../utils/helper')
+const { getUserInfo, calculateLevel, getUserId } = require('../../utils/helper')
 
 Page({
   data: {
@@ -129,8 +129,8 @@ Page({
   },
 
   loadVocabularyProgress() {
-    const userInfo = getUserInfo()
-    const userId = userInfo?.id || 1
+    const userId = getUserId()
+    if (!userId) return Promise.resolve()
     return vocabAPI.getVocabList(userId).then(res => {
       const list = res || []
       const mastered = list.filter(item => item.mastered === 1).length

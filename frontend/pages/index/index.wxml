@@ -1,72 +1,93 @@
 <view class="container">
-  <view class="header">
-    <view class="header-content">
-      <text class="greeting">{{greeting}}</text>
-      <text class="today">{{today}}</text>
+  <!-- 渐变头部 -->
+  <view class="page-header page-header-blue">
+    <view class="page-header-top">
+      <text class="page-title">背单词</text>
+      <view class="header-action">
+        <text style="margin-right:8rpx">🔥</text>
+        <text>{{streak}} 天连续</text>
+      </view>
     </view>
-    <view class="streak-badge">
-      <text class="streak-icon">🔥</text>
-      <text class="streak-count">{{streak}}天</text>
+    <text class="greeting">{{greeting}}</text>
+    <text class="page-subtitle">{{today}}</text>
+    <view class="page-header-wave">
+      <text style="font-size:80rpx;color:rgba(255,255,255,0.12);letter-spacing:-4rpx">~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~</text>
     </view>
   </view>
 
+  <!-- 进度卡片 -->
   <view class="progress-card" wx:if="{{!isLoading}}">
-    <view class="progress-header">
+    <view class="progress-ring-section">
+      <view class="progress-ring">
+        <view class="ring-bg"></view>
+        <view class="ring-fill" style="transform: rotate({{progress * 3.6}}deg);"></view>
+        <view class="ring-center">
+          <text class="ring-percent">{{progress}}%</text>
+        </view>
+      </view>
       <view class="progress-info">
         <text class="progress-title">今日学习进度</text>
-        <text class="progress-subtitle">已学习 {{todayWords}} / {{targetWords}} 词</text>
+        <text class="progress-count">{{todayWords}} / {{targetWords}} 词</text>
+        <view class="progress-bar-wrap">
+          <view class="progress-bar" style="width: {{progress}}%"></view>
+        </view>
+        <text class="progress-hint" wx:if="{{progress >= 100}}">🎉 今日目标已完成！</text>
+        <text class="progress-hint" wx:else>还差 {{targetWords - todayWords}} 词完成目标</text>
       </view>
-      <view class="progress-circle">
-        <text class="progress-percent">{{progress}}%</text>
-      </view>
-    </view>
-    <view class="progress-bar-wrap">
-      <view class="progress-bar" style="width: {{progress}}%"></view>
     </view>
   </view>
 
+  <!-- 骨架 -->
   <view class="progress-card skeleton" wx:if="{{isLoading}}">
     <view class="skeleton-row">
-      <view class="skeleton-line long"></view>
-      <view class="skeleton-line short"></view>
-    </view>
-    <view class="skeleton-line bar"></view>
-  </view>
-
-  <view class="quick-action-section">
-    <view class="quick-action-btn" bindtap="createBook">
-      <text class="quick-action-icon">📚</text>
-      <text class="quick-action-label">创建单词书</text>
+      <view class="skeleton-circle-big"></view>
+      <view class="skeleton-lines">
+        <view class="skeleton-line long"></view>
+        <view class="skeleton-line short"></view>
+        <view class="skeleton-line bar"></view>
+      </view>
     </view>
   </view>
 
-  <view class="total-stats" wx:if="{{!isLoading}}">
-    <view class="stat-item">
-      <text class="stat-value">{{totalWords}}</text>
+  <!-- 快捷操作 -->
+  <view class="actions-section">
+    <view class="action-card" bindtap="createBook">
+      <view class="action-icon-wrap">
+        <text>📚</text>
+      </view>
+      <text class="action-label">创建单词书</text>
+      <text class="action-arrow">→</text>
+    </view>
+    <view class="action-card" bindtap="viewAllWords">
+      <view class="action-icon-wrap purple">
+        <text>📖</text>
+      </view>
+      <text class="action-label">查看单词本</text>
+      <text class="action-arrow">→</text>
+    </view>
+  </view>
+
+  <!-- 统计 -->
+  <view class="stats-row">
+    <view class="stat-card">
+      <text class="stat-value animate-number">{{totalWords}}</text>
       <text class="stat-label">累计学习</text>
     </view>
-    <view class="stat-divider"></view>
-    <view class="stat-item">
-      <text class="stat-value">{{streak}}</text>
+    <view class="stat-card">
+      <text class="stat-value animate-number">{{streak}}</text>
       <text class="stat-label">连续天数</text>
     </view>
-    <view class="stat-divider"></view>
-    <view class="stat-item">
-      <text class="stat-value">{{todayWords}}</text>
+    <view class="stat-card">
+      <text class="stat-value animate-number">{{todayWords}}</text>
       <text class="stat-label">今日学习</text>
-    </view>
-  </view>
-
-  <view class="total-stats skeleton" wx:if="{{isLoading}}">
-    <view wx:for="{{3}}" wx:key="index" class="stat-item">
-      <view class="skeleton-line stat"></view>
-      <view class="skeleton-line label"></view>
     </view>
   </view>
 </view>
 
+<!-- 创建单词书弹窗 -->
 <view class="modal-overlay" wx:if="{{showModal}}" bindtap="closeModal">
   <view class="modal-content" catchtap="preventBubble">
+    <view class="modal-handle"></view>
     <view class="modal-header">
       <text class="modal-title">创建单词书</text>
       <view class="modal-close" bindtap="closeModal">×</view>
@@ -74,16 +95,16 @@
     <view class="modal-body">
       <view class="form-item">
         <text class="form-label">名称 <text class="required">*</text></text>
-        <input class="form-input" placeholder="请输入单词书名称" value="{{bookForm.name}}" bindinput="onNameInput" />
+        <input class="form-input" placeholder="给你的单词书起个名字" value="{{bookForm.name}}" bindinput="onNameInput" />
       </view>
       <view class="form-item">
         <text class="form-label">描述</text>
-        <textarea class="form-textarea" placeholder="请输入单词书描述（可选）" value="{{bookForm.description}}" bindinput="onDescInput" />
+        <textarea class="form-textarea" placeholder="简单描述一下这本书（可选）" value="{{bookForm.description}}" bindinput="onDescInput" />
       </view>
     </view>
     <view class="modal-footer">
-      <view class="btn-secondary" bindtap="closeModal">取消</view>
-      <view class="btn-primary" bindtap="submitCreate" style="margin-left: 20rpx;">创建</view>
+      <view class="btn btn-ghost btn-block" bindtap="closeModal">取消</view>
+      <view class="btn btn-primary btn-block" bindtap="submitCreate">创建</view>
     </view>
   </view>
 </view>

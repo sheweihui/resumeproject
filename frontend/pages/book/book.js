@@ -1,5 +1,5 @@
 const { vocabAPI, wordAPI } = require('../../utils/api')
-const { getUserInfo, formatDate } = require('../../utils/helper')
+const { getUserInfo, formatDate, getUserId } = require('../../utils/helper')
 
 Page({
   data: {
@@ -42,8 +42,8 @@ Page({
 
   loadBooks() {
     this.setData({ isLoading: true })
-    const userInfo = getUserInfo()
-    const userId = userInfo?.id || 1
+    const userId = getUserId()
+    if (!userId) { this.setData({ books: [], isLoading: false }); return }
 
     vocabAPI.getBookList(userId).then(res => {
       const books = res && res.code === 200 ? res.data : []
@@ -205,8 +205,8 @@ Page({
 
     try {
       wx.showLoading({ title: '创建中...' })
-      const userInfo = getUserInfo()
-      const userId = userInfo?.id || 1
+      const userId = getUserId()
+      if (!userId) { wx.hideLoading(); return }
       await vocabAPI.createBook(userId, newBookName, newBookDesc)
       wx.hideLoading()
       wx.showToast({ title: '创建成功', icon: 'success' })

@@ -1,0 +1,21 @@
+{
+  "id": "03f58a07a7cd",
+  "user_id": 1,
+  "created_at": 1779634184.3609364,
+  "last_active": 1779634184.396022,
+  "message_count": 2,
+  "topic": "",
+  "summary": "",
+  "messages": [
+    {
+      "role": "user",
+      "content": "怎么背单词",
+      "timestamp": 1779634184.374048
+    },
+    {
+      "role": "assistant",
+      "content": "根据你的学习数据：\n\n## 用户学习概况\n- 用户ID: 1\n\n有什么具体想了解的吗？",
+      "timestamp": 1779634184.396022
+    }
+  ]
+}

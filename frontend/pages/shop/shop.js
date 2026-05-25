@@ -1,4 +1,4 @@
-const { storeAPI } = require('../../utils/api.js')
+const { storeAPI } = require('../../utils/api')
 
 Page({
   data: {
@@ -96,6 +96,7 @@ Page({
         }
       }
     } catch (err) {
+      console.warn('[shop] 秒杀接口不可用，使用 Mock 数据备用')
       const mockFlashSaleList = [
         {
           id: 1,
@@ -253,7 +254,7 @@ Page({
 
     try {
       wx.showLoading({ title: '抢购中...' })
-      const res = await storeAPI.purchaseFlashSale(currentFlashSale.id)
+      const res = await storeAPI.purchaseFlashSale(currentFlashSale.id, currentFlashSale.flashPrice)
       wx.hideLoading()
 
       if (res.code === 200) {

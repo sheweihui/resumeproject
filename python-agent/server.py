@@ -9,20 +9,28 @@
 前端通过 /agent/chat 接口与 AI 对话。
 """
 
+import json
+import re
 import sys
 from contextlib import asynccontextmanager
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from config.settings import AGENT_HOST, AGENT_PORT, LOG_LEVEL, LOG_FILE, AGENT_NAME, AGENT_VERSION, LLM_API_KEY
+from config.settings import (
+    AGENT_HOST, AGENT_PORT, LOG_LEVEL, LOG_FILE,
+    AGENT_NAME, AGENT_VERSION, LLM_API_KEY,
+    TOOL_CALL_MAX_ROUNDS, CONVERSATION_MAX_AGE_DAYS,
+)
 from api.client import ApiClient
 from api.endpoints import Endpoints
-from api.schemas import ChatRequest, ChatResponse, ErrorResponse
+from api.schemas import ChatRequest, ChatResponse
 from agent.llm import LLMClient
 from agent.rag import RAGRetriever
 from agent.conversation import ConversationManager
+from agent.tools import build_tools, to_openai_tools, execute_tool
 
 # ------------------------------------------------------------
 # 全局组件
@@ -41,12 +49,15 @@ def init_components():
     rag = RAGRetriever(api_endpoints)
     conversations = ConversationManager()
 
+    # 清理过期对话
+    conversations.clean_expired(max_age_days=CONVERSATION_MAX_AGE_DAYS)
+
     if LLM_API_KEY and LLM_API_KEY != "sk-your-deepseek-api-key":
         llm = LLMClient()
-        logger.info("✅ LLM 已初始化 (DeepSeek)")
+        logger.info("LLM 已初始化 (DeepSeek)")
     else:
         llm = None
-        logger.warning("⚠️ LLM_API_KEY 未配置，将使用本地模式回复")
+        logger.warning("LLM_API_KEY 未配置，将使用本地模式回复")
 
 
 @asynccontextmanager
@@ -58,7 +69,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=AGENT_NAME,
     version=AGENT_VERSION,
-    description="背单词 App AI 助手 — RAG + 对话服务",
+    description="背单词 App AI 助手 — RAG + 对话 + Function Calling",
     lifespan=lifespan,
 )
 
@@ -92,11 +103,31 @@ SYSTEM_PROMPT = """你是一个专业的英语学习助手，帮助用户背单�
 
 ## 上下文信息
 {context}
+
+## 可用操作
+当用户要求执行以下操作时，请调用相应的函数（function calling）：
+{tool_descriptions}
+
+注意：如果用户只是提问或聊天（比如"hello"、"背单词有什么技巧"），直接回答即可，不需要调用函数。
 """
 
 
 def _build_system_prompt(context: str = "") -> str:
-    return SYSTEM_PROMPT.format(context=context or "暂无额外上下文。")
+    """构建带上下文和工具描述的系统提示词"""
+    tools = build_tools(api_endpoints)
+    tool_lines = []
+    for t in tools:
+        params_desc = ""
+        if t.parameters:
+            items = [f"{k}: {v}" for k, v in t.parameters.items()]
+            params_desc = f" 参数: {{{', '.join(items)}}}"
+        tool_lines.append(f"- **{t.name}**: {t.description}{params_desc}")
+
+    tool_descriptions = "\n".join(tool_lines) if tool_lines else "暂无可用操作。"
+    return SYSTEM_PROMPT.format(
+        context=context or "暂无额外上下文。",
+        tool_descriptions=tool_descriptions,
+    )
 
 
 # ------------------------------------------------------------
@@ -116,36 +147,92 @@ async def chat(req: ChatRequest):
     if not req.message.strip():
         raise HTTPException(status_code=400, detail="消息不能为空")
 
-    # 1. 创建/获取对话 ID
-    conv_id = req.conversation_id or conversations.create_conversation()
+    # 1. 创建/获取对话
+    conv_id = req.conversation_id or conversations.create_conversation(user_id=req.user_id)
+    if req.conversation_id:
+        conversations.update_metadata(conv_id, user_id=req.user_id)
+
     logger.info(f"[对话 {conv_id}] 用户: {req.message[:60]}")
 
-    # 2. RAG 检索上下文
-    context = await rag.retrieve_context(req.user_id, req.message)
-
-    # 3. 获取对话历史
-    history = conversations.get_history(conv_id)
-
-    # 4. 保存用户消息
+    # 2. 保存用户消息
     conversations.add_message(conv_id, "user", req.message)
 
-    # 5. 调用 LLM 或本地回退
-    if llm:
-        messages = [{"role": m["role"], "content": m["content"]} for m in history[-6:]]
-        reply = llm.chat(messages, system_prompt=_build_system_prompt(context))
-    else:
+    # 3. RAG 检索上下文
+    context = await rag.retrieve_context(req.user_id, req.message)
+
+    # 4. 无 LLM 时走本地回退
+    if not llm:
         reply = _local_fallback(req.message, context)
+        conversations.add_message(conv_id, "assistant", reply)
+        return ChatResponse(reply=reply, conversation_id=conv_id)
 
-    # 6. 保存 AI 回复
-    conversations.add_message(conv_id, "assistant", reply)
+    # 5. 构建消息 + 工具定义
+    history = conversations.get_history(conv_id)
+    messages = [{"role": m["role"], "content": m["content"]} for m in history]
+    tool_defs = to_openai_tools(build_tools(api_endpoints))
+    system_prompt = _build_system_prompt(context)
 
-    logger.info(f"[对话 {conv_id}] AI: {reply[:80]}...")
-    return ChatResponse(reply=reply, conversation_id=conv_id)
+    # 6. Tool-calling 循环
+    final_reply = ""
+
+    for rnd in range(1, TOOL_CALL_MAX_ROUNDS + 1):
+        content, tool_calls = llm.chat_with_tools(messages, system_prompt, tool_defs)
+
+        if not tool_calls:
+            final_reply = content
+            break
+
+        logger.info(f"[对话 {conv_id}] 第 {rnd} 轮工具调用: {len(tool_calls)} 个")
+
+        for tc in tool_calls:
+            try:
+                fn_name = tc["function"]["name"]
+                fn_args = _safe_parse_json(tc["function"]["arguments"])
+            except (KeyError, json.JSONDecodeError) as e:
+                logger.warning(f"解析 tool_call 失败: {e}")
+                continue
+
+            logger.info(f"  执行工具: {fn_name}({fn_args})")
+            result = execute_tool(fn_name, fn_args, api_endpoints)
+
+            # 添加 assistant 消息（含 tool_calls）
+            assistant_msg = {"role": "assistant", "content": content if content else None}
+            if tc:
+                assistant_msg["tool_calls"] = [tc]
+            messages.append(assistant_msg)
+
+            # 添加 tool 结果消息
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tc["id"],
+                "content": result,
+            })
+
+    if not final_reply:
+        logger.warning(f"[对话 {conv_id}] 工具循环结束但未获得回复")
+        final_reply = "抱歉，处理请求时出现了问题，请稍后再试。"
+
+    # 7. 保存 AI 回复
+    conversations.add_message(conv_id, "assistant", final_reply)
+
+    # 8. 首次消息时推断话题
+    conv_data = None
+    try:
+        conv_data = conversations._load(conv_id)
+    except Exception:
+        pass
+    if conv_data and conv_data.get("message_count", 0) <= 2:
+        topic = _detect_topic(req.message)
+        if topic:
+            conversations.update_metadata(conv_id, topic=topic)
+
+    logger.info(f"[对话 {conv_id}] AI: {final_reply[:80]}...")
+    return ChatResponse(reply=final_reply, conversation_id=conv_id)
 
 
 @app.get("/agent/conversations/{conv_id}/history")
 def get_history(conv_id: str):
-    """获取指定对话的历史（用于前端回显）"""
+    """获取指定对话的历史"""
     messages = conversations.get_history(conv_id, limit=50)
     return {"conversation_id": conv_id, "messages": messages}
 
@@ -155,6 +242,46 @@ def clear_conversation(conv_id: str):
     """清空对话"""
     conversations.clear(conv_id)
     return {"status": "ok"}
+
+
+# ------------------------------------------------------------
+# 辅助函数
+# ------------------------------------------------------------
+
+def _safe_parse_json(text: str) -> dict:
+    """安全解析 JSON 字符串，失败返回空 dict"""
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+
+
+def _detect_topic(message: str) -> str:
+    """根据消息内容推断对话话题"""
+    m = message.lower()
+
+    # 包含英文单词
+    if re.search(r"[a-z]{3,}", m) and not re.match(
+        r"^(你好|hello|hi|help|嗨|哈喽|您好)$", m.strip()
+    ):
+        if any(kw in m for kw in ("意思", "什么", "翻译", "怎么读", "发音", "单词")):
+            return "单词查询"
+        return "英语学习"
+
+    if "签到" in m or "checkin" in m or "打卡" in m:
+        return "每日签到"
+    if "积分" in m or "points" in m or "余额" in m:
+        return "积分查询"
+    if "单词本" in m or "book" in m or "词书" in m:
+        return "单词本管理"
+    if "秒杀" in m or "flash" in m or "抢购" in m:
+        return "秒杀活动"
+    if "建议" in m or "方法" in m or "技巧" in m or "怎么学" in m:
+        return "学习建议"
+    if "测试" in m or "题目" in m or "考" in m:
+        return "词汇测试"
+
+    return "日常对话"
 
 
 # ------------------------------------------------------------
@@ -210,8 +337,8 @@ def main():
     logger.add(LOG_FILE, rotation="10 MB", level="DEBUG")
 
     import uvicorn
-    logger.info(f"🚀 启动 {AGENT_NAME} v{AGENT_VERSION} → http://{AGENT_HOST}:{AGENT_PORT}")
-    logger.info(f"📚 LLM 状态: {'已就绪' if llm else '未配置（使用本地模式）'}")
+    logger.info(f"启动 {AGENT_NAME} v{AGENT_VERSION} → http://{AGENT_HOST}:{AGENT_PORT}")
+    logger.info(f"LLM 状态: {'已就绪' if llm else '未配置（使用本地模式）'}")
     uvicorn.run(app, host=AGENT_HOST, port=AGENT_PORT)
 
 

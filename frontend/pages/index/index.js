@@ -1,5 +1,5 @@
 const { studyRecordAPI, vocabAPI } = require('../../utils/api')
-const { getGreeting, getTodayString, getUserInfo } = require('../../utils/helper')
+const { getGreeting, getTodayString, getUserInfo, getUserId } = require('../../utils/helper')
 
 Page({
   data: {
@@ -10,7 +10,6 @@ Page({
     streak: 0,
     progress: 0,
     targetWords: 50,
-    recentWords: [],
     isLoading: true,
     showModal: false,
     bookForm: {
@@ -49,10 +48,7 @@ Page({
 
   loadData() {
     this.setData({ isLoading: true })
-    Promise.all([
-      this.loadStudyStats(),
-      this.loadRecentWords()
-    ]).finally(() => {
+    this.loadStudyStats().finally(() => {
       this.setData({ isLoading: false })
     })
   },
@@ -76,22 +72,6 @@ Page({
         streak: 0,
         progress: 0
       })
-    })
-  },
-
-  loadRecentWords() {
-    const userInfo = getUserInfo()
-    const userId = userInfo?.id || 1
-    return vocabAPI.getVocabList(userId).then(res => {
-      const recent = (res || []).slice(0, 3).map(item => ({
-        id: item.vocabId,
-        word: item.word?.wordText,
-        meaning: item.word?.definition,
-        mastered: item.mastered
-      }))
-      this.setData({ recentWords: recent })
-    }).catch(() => {
-      this.setData({ recentWords: [] })
     })
   },
 
@@ -125,8 +105,8 @@ Page({
     }
 
     try {
-      const userInfo = getUserInfo()
-      const userId = userInfo?.id || 1
+      const userId = getUserId()
+      if (!userId) return
       await vocabAPI.createBook(userId, name.trim(), description.trim())
       wx.showToast({ title: '创建成功', icon: 'success' })
       this.closeModal()

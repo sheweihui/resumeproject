@@ -1,18 +1,24 @@
 .container {
   min-height: 100vh;
   background: var(--bg-page);
-  padding-bottom: 160rpx;
+  padding-bottom: 40rpx;
 }
 
-.header {
-  background: var(--primary-gradient);
-  padding: 40rpx 30rpx;
-}
-
-.user-card {
+/* ===== 头部玻璃拟态 ===== */
+.profile-glass {
   display: flex;
   align-items: center;
-  margin-bottom: 30rpx;
+  margin-top: 20rpx;
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: var(--radius-lg);
+  padding: 24rpx;
+  border: 1rpx solid rgba(255,255,255,0.15);
+}
+
+.profile-left {
+  flex-shrink: 0;
 }
 
 .avatar-wrap {
@@ -20,106 +26,106 @@
 }
 
 .avatar {
-  width: 140rpx;
-  height: 140rpx;
+  width: 120rpx;
+  height: 120rpx;
   border-radius: 50%;
-  border: 4rpx solid rgba(255, 255, 255, 0.5);
+  border: 4rpx solid rgba(255,255,255,0.6);
 }
 
 .level-badge {
   position: absolute;
-  bottom: -10rpx;
+  bottom: -8rpx;
   left: 50%;
   transform: translateX(-50%);
-  background: #ffd700;
-  color: #333;
+  background: linear-gradient(135deg, #ffd700, #ffaa00);
+  color: #7a5500;
   font-size: 20rpx;
+  font-weight: 700;
   padding: 4rpx 16rpx;
   border-radius: 20rpx;
   white-space: nowrap;
+  box-shadow: 0 2rpx 8rpx rgba(255, 215, 0, 0.4);
 }
 
-.user-info {
-  margin-left: 30rpx;
+.profile-info {
+  margin-left: 24rpx;
+  flex: 1;
 }
 
-.user-name {
-  font-size: 36rpx;
-  font-weight: 600;
+.profile-name {
+  font-size: 38rpx;
+  font-weight: 700;
   color: #fff;
   display: block;
 }
 
-.streak {
+.profile-streak {
   display: flex;
   align-items: center;
-  margin-top: 10rpx;
-}
-
-.streak-icon {
-  font-size: 28rpx;
+  margin-top: 8rpx;
 }
 
 .streak-text {
   font-size: 24rpx;
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255,255,255,0.85);
   margin-left: 8rpx;
 }
 
-.progress-card {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: var(--radius-md);
-  padding: 30rpx;
-}
-
-.progress-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20rpx;
-}
-
-.progress-title {
-  font-size: 28rpx;
-  color: #fff;
-}
-
-.progress-count {
-  font-size: 26rpx;
-  color: rgba(255, 255, 255, 0.9);
-}
-
+/* 进度条 */
 .progress-bar-wrap {
-  height: 16rpx;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 8rpx;
+  height: 8rpx;
+  background: rgba(255,255,255,0.2);
+  border-radius: 4rpx;
   overflow: hidden;
+  margin-top: 24rpx;
 }
 
 .progress-bar {
   height: 100%;
   background: #fff;
-  border-radius: 8rpx;
-  transition: width 0.5s ease;
+  border-radius: 4rpx;
+  transition: width 0.8s var(--ease-out);
 }
 
-.progress-percent-text {
-  text-align: right;
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #fff;
-  margin-top: 10rpx;
-}
-
-.points-card {
+.progress-stats {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #fff;
-  margin: 20rpx;
+  margin-top: 12rpx;
+}
+
+.progress-label {
+  font-size: 24rpx;
+  color: rgba(255,255,255,0.8);
+}
+
+.progress-count {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* ===== 积分卡片 ===== */
+.points-card {
+  position: relative;
+  margin: -36rpx 24rpx 20rpx;
   border-radius: var(--radius-lg);
-  padding: 30rpx;
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  box-shadow: 0 8rpx 32rpx rgba(102, 126, 234, 0.25);
+}
+
+.points-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.points-content {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28rpx 32rpx;
 }
 
 .points-left {
@@ -127,17 +133,17 @@
 }
 
 .points-label {
-  font-size: 26rpx;
-  color: var(--text-secondary);
+  font-size: 24rpx;
+  color: rgba(255,255,255,0.8);
 }
 
-.points-amount {
+.points-value {
   display: flex;
   align-items: baseline;
-  margin-top: 12rpx;
+  margin-top: 8rpx;
 }
 
-.points-symbol {
+.points-coin {
   font-size: 36rpx;
   margin-right: 8rpx;
 }
@@ -145,103 +151,85 @@
 .points-number {
   font-size: 56rpx;
   font-weight: 700;
-  color: var(--purple);
+  color: #fff;
 }
 
-.points-unit {
-  font-size: 28rpx;
-  color: var(--text-muted);
-  margin-left: 8rpx;
-}
-
-.points-stats {
+.points-meta {
   display: flex;
   align-items: center;
-  margin-top: 12rpx;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: rgba(255,255,255,0.65);
 }
 
-.points-stats .stat-item {
-  font-size: 24rpx;
-  color: var(--text-muted);
-}
-
-.stat-divider {
-  margin: 0 16rpx;
-  color: #d1d5db;
+.points-divider {
+  margin: 0 12rpx;
+  opacity: 0.4;
 }
 
 .points-right {
   margin-left: 24rpx;
+  flex-shrink: 0;
 }
 
 .checkin-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: var(--purple-gradient);
-  color: #fff;
-  padding: 20rpx 32rpx;
-  border-radius: var(--radius-md);
-  box-shadow: 0 6rpx 20rpx rgba(99, 102, 241, 0.4);
-  transition: all 0.3s ease;
+  justify-content: center;
+  width: 120rpx;
+  height: 120rpx;
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(10px);
+  border: 1rpx solid rgba(255,255,255,0.15);
+  border-radius: 24rpx;
+  transition: all 0.3s;
 }
 
 .checkin-btn:active {
-  transform: scale(0.95);
+  transform: scale(0.92);
 }
 
 .checkin-btn.checked-in {
-  background: #f3f4f6;
-  color: var(--text-muted);
-  box-shadow: none;
+  background: rgba(255,255,255,0.1);
 }
 
 .checkin-icon {
-  font-size: 32rpx;
-  margin-bottom: 6rpx;
+  font-size: 36rpx;
 }
 
 .checkin-text {
-  font-size: 28rpx;
-  color: #fff;
-  font-weight: 600;
+  font-size: 22rpx;
+  color: rgba(255,255,255,0.9);
+  margin-top: 6rpx;
+  font-weight: 500;
 }
 
 .checkin-btn.checked-in .checkin-text {
-  color: var(--text-muted);
+  color: rgba(255,255,255,0.5);
 }
 
-.checkin-days {
-  font-size: 22rpx;
-  color: rgba(255, 255, 255, 0.8);
-  margin-top: 4rpx;
-}
-
+/* ===== 统计网格 ===== */
 .stats-grid {
   display: flex;
-  margin: -40rpx 20rpx 20rpx;
-  background: #fff;
-  border-radius: var(--radius-md);
-  padding: 30rpx;
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
+  margin: 0 24rpx 20rpx;
+  gap: 16rpx;
 }
 
-.stats-grid .stat-item {
+.stat-card {
   flex: 1;
+  background: #fff;
+  border-radius: var(--radius-md);
+  padding: 24rpx 16rpx;
   text-align: center;
+  box-shadow: var(--shadow-sm);
 }
 
 .stat-value {
-  font-size: 40rpx;
-  font-weight: 600;
+  font-size: 44rpx;
+  font-weight: 700;
   color: var(--text-primary);
   display: block;
-}
-
-.stat-unit {
-  font-size: 22rpx;
-  color: var(--text-muted);
-  margin-left: 4rpx;
 }
 
 .stat-label {
@@ -251,18 +239,25 @@
   display: block;
 }
 
+/* ===== 菜单 ===== */
 .menu-section {
-  margin: 20rpx;
+  margin: 0 24rpx;
   background: #fff;
   border-radius: var(--radius-md);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .menu-item {
   display: flex;
   align-items: center;
-  padding: 30rpx;
+  padding: 28rpx 32rpx;
   border-bottom: 1rpx solid var(--border);
+  transition: background 0.2s;
+}
+
+.menu-item:active {
+  background: var(--bg-page);
 }
 
 .menu-item:last-child {
@@ -274,22 +269,54 @@
   margin-right: 20rpx;
 }
 
-.menu-label {
+.menu-content {
   flex: 1;
+}
+
+.menu-label {
   font-size: 30rpx;
   color: var(--text-primary);
+  font-weight: 500;
 }
 
 .menu-badge {
-  background: #ff6b6b;
+  background: linear-gradient(135deg, #f5576c, #ff6b6b);
   color: #fff;
   font-size: 20rpx;
-  padding: 4rpx 12rpx;
+  padding: 4rpx 16rpx;
   border-radius: 20rpx;
   margin-right: 16rpx;
 }
 
 .menu-arrow {
-  font-size: 40rpx;
+  font-size: 44rpx;
   color: #ccc;
+  font-weight: 300;
+}
+
+/* ===== 退出登录 ===== */
+.logout-section {
+  margin: 24rpx;
+  background: #fff;
+  border-radius: var(--radius-md);
+  text-align: center;
+  padding: 28rpx;
+  box-shadow: var(--shadow-sm);
+}
+
+.logout-section:active {
+  background: var(--bg-page);
+}
+
+.logout-text {
+  font-size: 30rpx;
+  color: var(--red);
+  font-weight: 500;
+}
+
+/* ===== 骨架屏 ===== */
+.skeleton-profile {
+  display: flex;
+  align-items: center;
+  padding: 40rpx 32rpx;
 }

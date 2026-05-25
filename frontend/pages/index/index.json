@@ -1,6 +1,5 @@
 {
   "navigationBarTitleText": "背单词",
-  "navigationBarTextStyle": "black",
-  "navigationBarBackgroundColor": "#ffffff",
+  "navigationStyle": "custom",
   "enablePullDownRefresh": true
 }
