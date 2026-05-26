@@ -1,0 +1,21 @@
+{
+  "id": "fd88559b3cd7",
+  "user_id": 15,
+  "created_at": 1779804776.8770056,
+  "last_active": 1779804780.977376,
+  "message_count": 2,
+  "topic": "单词查询",
+  "summary": "",
+  "messages": [
+    {
+      "role": "user",
+      "content": "查一下beautiful这个单词",
+      "timestamp": 1779804776.892546
+    },
+    {
+      "role": "assistant",
+      "content": "### 📖 beautiful\n\n| 项目 | 内容 |\n|------|------|\n| **音标** | /ˈbjuːtɪfl/ |\n| **词性** | 形容词 (adj.) |\n| **中文释义** | 美丽的，漂亮的，美好的 |\n| **例句** | *The flower is beautiful.* → 这朵花很美丽。 |\n\n---\n\n### 更多例句帮助你理解：\n\n1. **She has a beautiful smile.** → 她有一个美丽的微笑。\n2. **What a beautiful day!** → 多么美好的一天啊！\n3. **The sunset was absolutely beautiful.** → 日落美极了。\n\n### 常见搭配：\n- **beautiful girl** → 美丽的女孩\n- **beautiful scenery** → 美丽的风景\n- **beautiful voice** → 优美的嗓音\n\n### 词源小知识：\nbeautiful 由 **beauty**（美丽）+ **-ful**（充满……的）构成，字面意思就是\"充满美丽的\"。\n\n还有其他单词需要查询吗？😊",
+      "timestamp": 1779804780.9647853
+    }
+  ]
+}

@@ -39,6 +39,14 @@ class AuthManager:
     def get_user_id(self) -> Optional[int]:
         return self._session.user_id if self._session else None
 
+    def set_token(self, token: str, user_id: int = 0, username: str = "") -> None:
+        """动态设置 token（从请求中传入，不持久化到文件）"""
+        self._session = AuthSession(
+            token=token,
+            user_id=user_id,
+            username=username or f"user_{user_id}",
+        )
+
     def clear(self) -> None:
         self._session = None
         if TOKEN_FILE.exists():

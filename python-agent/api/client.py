@@ -91,15 +91,18 @@ class ApiClient:
     def login(self, username: str, password: str) -> dict:
         from .auth import AuthSession
         result = self.post("/user/login", {"username": username, "password": password}, need_auth=False)
-        # 假设返回 {token, id, username, nickname}
-        session = AuthSession(
-            token=result.get("token") or result.get("data", {}).get("token", ""),
-            user_id=result.get("id") or result.get("data", {}).get("id", 0),
-            username=username,
-            nickname=result.get("nickname") or result.get("data", {}).get("nickname"),
-        )
-        self.auth.save_session(session)
-        logger.info(f"登录成功: {username}")
+        # 后端返回 {code, message, data: {token, userId, username, nickname}}
+        if isinstance(result, dict):
+            session = AuthSession(
+                token=result.get("token", ""),
+                user_id=result.get("userId", 0),
+                username=username,
+                nickname=result.get("nickname", username),
+            )
+            self.auth.save_session(session)
+            logger.info(f"登录成功: {username}")
+        else:
+            logger.warning(f"登录返回格式异常: {type(result)}")
         return result
 
     def register(self, username: str, password: str, nickname: str = "") -> dict:

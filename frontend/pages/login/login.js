@@ -80,17 +80,15 @@ Page({
 
     try {
       const res = await userAPI.login(username, password)
-      const token = res.data
-      wx.setStorageSync('token', token)
+      // res.data = { code: 200, message: "登录成功", data: { token, userId, nickname, ... } }
+      const loginData = res.data
+      wx.setStorageSync('token', loginData.token)
 
-      // 通过 token 获取用户信息（解析或调用接口）
-      // 后端 login 接口目前只返回 token，userId 为 1 是占位
-      // 后续可调用 getUserInfo 获取真实 userId
       const userData = {
-        id: 1,
-        username: username.trim(),
-        nickname: username.trim(),
-        avatar: ''
+        id: loginData.userId,
+        username: loginData.username || username.trim(),
+        nickname: loginData.nickname || username.trim(),
+        avatar: loginData.avatar || ''
       }
       wx.setStorageSync('userInfo', userData)
 

@@ -26,7 +26,7 @@ from config.settings import (
 )
 from api.client import ApiClient
 from api.endpoints import Endpoints
-from api.schemas import ChatRequest, ChatResponse
+from api.schemas import ChatRequest, ChatResponse, WordEnrichRequest, WordEnrichResponse
 from agent.llm import LLMClient
 from agent.rag import RAGRetriever
 from agent.conversation import ConversationManager
@@ -147,20 +147,27 @@ async def chat(req: ChatRequest):
     if not req.message.strip():
         raise HTTPException(status_code=400, detail="消息不能为空")
 
-    # 1. 创建/获取对话
+    # 1. 如果有 token，注入到 API 客户端供 RAG/工具调用使用
+    if req.token:
+        api_client.auth.set_token(
+            token=req.token,
+            user_id=req.user_id or 0,
+        )
+
+    # 2. 创建/获取对话
     conv_id = req.conversation_id or conversations.create_conversation(user_id=req.user_id)
     if req.conversation_id:
         conversations.update_metadata(conv_id, user_id=req.user_id)
 
     logger.info(f"[对话 {conv_id}] 用户: {req.message[:60]}")
 
-    # 2. 保存用户消息
+    # 3. 保存用户消息
     conversations.add_message(conv_id, "user", req.message)
 
-    # 3. RAG 检索上下文
+    # 4. RAG 检索上下文
     context = await rag.retrieve_context(req.user_id, req.message)
 
-    # 4. 无 LLM 时走本地回退
+    # 5. 无 LLM 时走本地回退
     if not llm:
         reply = _local_fallback(req.message, context)
         conversations.add_message(conv_id, "assistant", reply)
@@ -228,6 +235,40 @@ async def chat(req: ChatRequest):
 
     logger.info(f"[对话 {conv_id}] AI: {final_reply[:80]}...")
     return ChatResponse(reply=final_reply, conversation_id=conv_id)
+
+
+@app.post("/agent/word/enrich", response_model=WordEnrichResponse)
+def enrich_word(req: WordEnrichRequest):
+    """获取单词的 AI 补全信息（音标、释义、例句等）"""
+    word_text = req.word_text.strip()
+    if not word_text:
+        raise HTTPException(status_code=400, detail="单词不能为空")
+
+    if not llm:
+        raise HTTPException(status_code=503, detail="LLM 不可用，无法补全单词")
+
+    logger.info(f"[单词补全] {word_text} (user_id={req.user_id})")
+
+    prompt = (
+        f"请提供以下英文单词的详细信息，以JSON格式返回：\n"
+        f"单词：{word_text}\n\n"
+        f"要求返回以下字段：\n"
+        f"- wordText: 单词本身\n"
+        f"- phonetic: 音标（使用国际音标）\n"
+        f"- partOfSpeech: 词性（如 n., v., adj., adv. 等）\n"
+        f"- definition: 中文释义（简洁明了）\n"
+        f"- exampleSentence: 英文例句（简单易懂）\n"
+        f"- exampleTranslation: 例句的中文翻译\n\n"
+        f"只返回JSON数据，不要有其他文字说明。"
+    )
+
+    reply = llm.chat(
+        messages=[{"role": "user", "content": prompt}],
+        system_prompt="你是一个单词学习助手，必须只返回纯JSON格式数据。"
+    )
+
+    logger.info(f"[单词补全] {word_text} → {reply[:100]}...")
+    return WordEnrichResponse(content=reply, word_text=word_text)
 
 
 @app.get("/agent/conversations/{conv_id}/history")
