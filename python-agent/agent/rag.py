@@ -9,6 +9,14 @@ from loguru import logger
 
 from api.endpoints import Endpoints
 
+# 知识库（可选注入，由 server.py 传入）
+try:
+    from agent.knowledge_base import KnowledgeBase
+    HAS_KB = True
+except ImportError:
+    HAS_KB = False
+    KnowledgeBase = None
+
 # 英语停用词（模块级常量）
 _STOPWORDS: set[str] = {
     "the", "is", "are", "was", "were", "has", "have", "had", "do",
@@ -75,8 +83,9 @@ class _LRUCache:
 class RAGRetriever:
     """从后端检索与用户问题相关的上下文"""
 
-    def __init__(self, api: Endpoints):
+    def __init__(self, api: Endpoints, kb: 'KnowledgeBase | None' = None):
         self.api = api
+        self.kb = kb if HAS_KB else None
         self._cache = _LRUCache()
 
     def clear_cache(self, key: Optional[str] = None):
@@ -102,6 +111,8 @@ class RAGRetriever:
 
         if user_id:
             tasks.append(asyncio.create_task(self._get_user_profile(user_id)))
+            if self.kb:
+                tasks.append(asyncio.create_task(self._search_knowledge_base(user_id, message)))
 
         if not tasks:
             return ""
@@ -241,6 +252,28 @@ class RAGRetriever:
         section = f"## 用户学习概况\n" + "\n".join(lines)
         self._cache.set(cache_key, section)
         return section
+
+    # ---- 知识库搜索（向量语义检索） ----
+
+    async def _search_knowledge_base(self, user_id: int, message: str) -> Optional[str]:
+        """从用户的知识库中搜索与问题相关的文档片段"""
+        if not self.kb:
+            return None
+
+        try:
+            results = self.kb.search(message, top_k=3, user_id=user_id)
+            if results:
+                items = []
+                for r in results:
+                    preview = r["content"][:150].replace("\n", " ")
+                    items.append(f"- [{r['title']}](相似度: {r['score']:.2f}) {preview}...")
+                section = "## 知识库匹配\n" + "\n".join(items)
+                logger.debug(f"知识库命中 {len(results)} 条")
+                return section
+        except Exception as e:
+            logger.debug(f"知识库搜索异常: {e}")
+
+        return None
 
     # ---- 格式化 ----
 

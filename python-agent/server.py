@@ -28,11 +28,15 @@ from config.settings import (
 )
 from api.client import ApiClient
 from api.endpoints import Endpoints
-from api.schemas import ChatRequest, ChatResponse, WordEnrichRequest, WordEnrichResponse
+from api.schemas import (
+    ChatRequest, ChatResponse, WordEnrichRequest, WordEnrichResponse,
+    KnowledgeUploadRequest, KnowledgeUploadResponse, KnowledgeDocument,
+)
 from agent.llm import LLMClient
 from agent.rag import RAGRetriever
 from agent.conversation import ConversationManager
-from agent.tools import build_tools, to_openai_tools, execute_tool
+from agent.mcp_client import MCPClient
+from agent.knowledge_base import KnowledgeBase
 
 # ------------------------------------------------------------
 # 全局组件
@@ -42,13 +46,16 @@ api_endpoints: Endpoints = None
 llm: LLMClient = None
 rag: RAGRetriever = None
 conversations: ConversationManager = None
+mcp_client: MCPClient = None
+kb: KnowledgeBase = None
 
 
 def init_components():
-    global api_client, api_endpoints, llm, rag, conversations
+    global api_client, api_endpoints, llm, rag, conversations, kb
     api_client = ApiClient()
     api_endpoints = Endpoints(api_client)
-    rag = RAGRetriever(api_endpoints)
+    kb = KnowledgeBase()
+    rag = RAGRetriever(api_endpoints, kb=kb)
     conversations = ConversationManager()
 
     conversations.clean_expired(max_age_days=CONVERSATION_MAX_AGE_DAYS)
@@ -86,7 +93,20 @@ def check_backend_connectivity() -> dict:
 async def lifespan(app: FastAPI):
     init_components()
     check_backend_connectivity()
+
+    # 初始化 MCP 客户端
+    global mcp_client
+    try:
+        mcp_client = MCPClient()
+        await mcp_client.connect()
+    except Exception as e:
+        logger.warning(f"MCP 初始化失败，将使用本地模式: {e}")
+        mcp_client = None
+
     yield
+
+    if mcp_client:
+        await mcp_client.close()
     logger.info("Agent 服务关闭")
 
 
@@ -154,16 +174,7 @@ SYSTEM_PROMPT = """你是一个专业的英语学习助手，帮助用户背单�
 
 def _build_system_prompt(context: str = "") -> str:
     """构建带上下文和工具描述的系统提示词"""
-    tools = build_tools(api_endpoints)
-    tool_lines = []
-    for t in tools:
-        params_desc = ""
-        if t.parameters:
-            items = [f"{k}: {v}" for k, v in t.parameters.items()]
-            params_desc = f" 参数: {{{', '.join(items)}}}"
-        tool_lines.append(f"- **{t.name}**: {t.description}{params_desc}")
-
-    tool_descriptions = "\n".join(tool_lines) if tool_lines else "暂无可用操作。"
+    tool_descriptions = mcp_client.get_tool_descriptions() if mcp_client else "暂无可用操作。"
     return SYSTEM_PROMPT.format(
         context=context or "暂无额外上下文。",
         tool_descriptions=tool_descriptions,
@@ -189,10 +200,63 @@ def health():
         "status": "ok",
         "version": AGENT_VERSION,
         "llm_ready": llm is not None,
+        "mcp_ready": mcp_client is not None and mcp_client.connected,
+        "knowledge_base": kb is not None and kb.available,
         "uptime_s": round(uptime),
         "memory_mb": round(mem, 1) if mem else 0,
         "rag_cache_size": rag._cache.size if rag else 0,
     }
+
+
+# ------------------------------------------------------------
+# 知识库 API
+# ------------------------------------------------------------
+
+
+@app.post("/agent/knowledge/upload",
+          response_model=KnowledgeUploadResponse)
+def upload_knowledge(req: KnowledgeUploadRequest):
+    """上传文档到知识库"""
+    if not kb or not kb.available:
+        raise HTTPException(status_code=503, detail="知识库不可用（chromadb 未安装）")
+
+    if not req.title.strip():
+        raise HTTPException(status_code=400, detail="标题不能为空")
+    if not req.content.strip():
+        raise HTTPException(status_code=400, detail="内容不能为空")
+
+    result = kb.add_document(req.title, req.content, req.user_id or 0)
+    return KnowledgeUploadResponse(
+        **result,
+        message=f"上传成功，已分块为 {result['chunk_count']} 个片段",
+    )
+
+
+@app.get("/agent/knowledge/documents")
+def list_knowledge_documents():
+    """列出知识库中的所有文档"""
+    if not kb or not kb.available:
+        return {"documents": []}
+    docs = kb.list_documents()
+    return {"documents": docs}
+
+
+@app.delete("/agent/knowledge/documents/{doc_id}")
+def delete_knowledge_document(doc_id: str):
+    """删除知识库中的文档"""
+    if not kb or not kb.available:
+        raise HTTPException(status_code=503, detail="知识库不可用")
+    kb.delete_document(doc_id)
+    return {"status": "ok", "doc_id": doc_id}
+
+
+@app.post("/agent/knowledge/search")
+def search_knowledge(query: str, user_id: int = 0, top_k: int = 3):
+    """搜索知识库（调试用）"""
+    if not kb or not kb.available:
+        return {"results": []}
+    results = kb.search(query, top_k=top_k, user_id=user_id if user_id else None)
+    return {"results": results}
 
 
 @app.post("/agent/chat", response_model=ChatResponse)
@@ -200,12 +264,19 @@ async def chat(req: ChatRequest):
     if not req.message.strip():
         raise HTTPException(status_code=400, detail="消息不能为空")
 
-    # 1. Token 注入
+    # 1. Token 注入（同时持久化到 auth.json 供 MCP Server 读取）
     if req.token:
         api_client.auth.set_token(
             token=req.token,
             user_id=req.user_id or 0,
         )
+        # 同步写入 auth.json，MCP Server 子进程通过 _reload_auth() 读取
+        from api.auth import AuthSession
+        api_client.auth.save_session(AuthSession(
+            token=req.token,
+            user_id=req.user_id or 0,
+            username=f"user_{req.user_id or 0}",
+        ))
 
     # 2. 创建/获取对话
     conv_id = req.conversation_id or conversations.create_conversation(user_id=req.user_id)
@@ -230,7 +301,7 @@ async def chat(req: ChatRequest):
     # 6. 构建消息 + 工具定义
     history = conversations.get_history(conv_id)
     messages = [{"role": m["role"], "content": m["content"]} for m in history]
-    tool_defs = to_openai_tools(build_tools(api_endpoints))
+    tool_defs = mcp_client.get_tool_defs() if mcp_client else []
     system_prompt = _build_system_prompt(context)
 
     # 7. Tool-calling 循环
@@ -253,7 +324,7 @@ async def chat(req: ChatRequest):
                 continue
 
             logger.info(f"  执行工具: {fn_name}({fn_args})")
-            result = execute_tool(fn_name, fn_args, api_endpoints)
+            result = await mcp_client.call_tool(fn_name, fn_args)
 
             assistant_msg = {"role": "assistant", "content": content if content else None}
             if tc:
