@@ -128,7 +128,7 @@ const userAPI = {
 
   /** 验证 token 有效性 */
   validateToken: (token) => {
-    return request('/user/validate', 'GET', null, true)
+    return request('/user/validate', 'POST', { token }, false)
   },
 
   /** 退出登录 */
@@ -144,9 +144,9 @@ const wordAPI = {
     return request(`/word/${id}`, 'GET')
   },
 
-  /** AI 填充单词信息 (发送原始字符串, 后端 @RequestBody String 接收) */
+  /** AI 填充单词信息 */
   aiFillWord: (wordText) => {
-    return request('/word/ai-fill', 'POST', wordText)
+    return request('/word/ai-fill', 'POST', { wordText })
   },
 
   /** 更新单词 */
@@ -195,6 +195,29 @@ const vocabAPI = {
   /** 获取用户学习列表 */
   getVocabList: (userId) => {
     return request(`/vocabulary-book/list/${userId}`, 'GET')
+  }
+}
+
+/** 单词书-单词关联 API（走 /api/book-word） */
+const bookWordAPI = {
+  /** 标记单词为已掌握 */
+  markAsMastered: (userId, bookId, wordId) => {
+    return request('/book-word/master', 'PUT', { userId, bookId, wordId })
+  },
+
+  /** 添加单词笔记 */
+  addNote: (userId, bookId, wordId, note) => {
+    return request('/book-word/note', 'PUT', { userId, bookId, wordId, note })
+  },
+
+  /** 获取未掌握单词 */
+  getUnmastered: (userId, bookId) => {
+    return request('/book-word/unmastered', 'GET', { userId, bookId })
+  },
+
+  /** 获取已掌握单词 */
+  getMastered: (userId, bookId) => {
+    return request('/book-word/mastered', 'GET', { userId, bookId })
   }
 }
 
@@ -309,5 +332,6 @@ module.exports = {
   studyRecordAPI,
   storeAPI,
   agentAPI,
-  aiAPI
+  aiAPI,
+  bookWordAPI
 }

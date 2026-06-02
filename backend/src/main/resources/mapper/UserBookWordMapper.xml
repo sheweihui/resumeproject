@@ -100,4 +100,28 @@
         SELECT COUNT(*) FROM user_book_word WHERE book_id = #{bookId}
     </select>
 
+    <!-- 统计用户所有单词总数 -->
+    <select id="countByUserId" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM user_book_word WHERE user_id = #{userId}
+    </select>
+
+    <!-- 统计用户已掌握的单词数 -->
+    <select id="countMasteredByUserId" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM user_book_word WHERE user_id = #{userId} AND mastered = 1
+    </select>
+
+    <!-- 统计用户今日复习的单词数 -->
+    <select id="countReviewedTodayByUserId" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM user_book_word
+        WHERE user_id = #{userId}
+          AND last_review_time >= CURDATE()
+    </select>
+
+    <!-- 统计用户今日新学单词数 -->
+    <select id="countNewTodayByUserId" resultType="java.lang.Integer">
+        SELECT COUNT(*) FROM user_book_word
+        WHERE user_id = #{userId}
+          AND created_at >= CURDATE()
+    </select>
+
 </mapper>

@@ -1,12 +1,12 @@
 package org.example.service.impl;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.entity.UserCheckin;
 import org.example.mapper.UserCheckinMapper;
 import org.example.service.UserCheckinService;
 import org.example.service.UserPointsAccountService;
 import org.example.vo.CheckinVO;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,14 +16,12 @@ import java.time.LocalDate;
  * 用户签到服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class UserCheckinServiceImpl implements UserCheckinService {
-    
-    @Autowired
-    private UserCheckinMapper userCheckinMapper;
-    
-    @Autowired
-    private UserPointsAccountService userPointsAccountService;
+
+    private final UserCheckinMapper userCheckinMapper;
+    private final UserPointsAccountService userPointsAccountService;
     
     @Override
     @Transactional

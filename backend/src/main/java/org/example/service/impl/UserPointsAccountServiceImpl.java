@@ -1,12 +1,12 @@
 package org.example.service.impl;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.entity.UserPointsAccount;
 import org.example.entity.UserPointsTransaction;
 import org.example.mapper.UserPointsAccountMapper;
 import org.example.mapper.UserPointsTransactionMapper;
 import org.example.service.UserPointsAccountService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,14 +16,12 @@ import java.time.LocalDateTime;
  * 用户积分账户服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class UserPointsAccountServiceImpl implements UserPointsAccountService {
 
-    @Autowired
-    private UserPointsAccountMapper userPointsAccountMapper;
-
-    @Autowired
-    private UserPointsTransactionMapper userPointsTransactionMapper;
+    private final UserPointsAccountMapper userPointsAccountMapper;
+    private final UserPointsTransactionMapper userPointsTransactionMapper;
 
     @Override
     @Transactional
@@ -78,7 +76,8 @@ public class UserPointsAccountServiceImpl implements UserPointsAccountService {
         long start = System.currentTimeMillis();
         UserPointsAccount account = userPointsAccountMapper.selectByUserId(userId);
         if (account == null) {
-            throw new RuntimeException("积分账户不存在");
+            log.warn("⚠️ [积分账户] 用户 {} 的账户不存在，自动创建", userId);
+            account = createAccount(userId);
         }
 
         int newBalance = account.getBalance() + amount;

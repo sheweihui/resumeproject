@@ -1,5 +1,6 @@
 package org.example.service.impl;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.context.UserContextHolder;
 import org.example.dto.WordDTO;
@@ -10,7 +11,6 @@ import org.example.mapper.UserBookWordMapper;
 import org.example.mapper.UserVocabularyBookMapper;
 import org.example.mapper.UserWordMapper;
 import org.example.service.UserVocabularyBookService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,17 +21,13 @@ import java.util.List;
  * 用户单词书服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class UserVocabularyBookServiceImpl implements UserVocabularyBookService {
 
-    @Autowired
-    private UserVocabularyBookMapper userVocabularyBookMapper;
-    
-    @Autowired
-    private UserBookWordMapper userBookWordMapper;
-    
-    @Autowired
-    private UserWordMapper userWordMapper;
+    private final UserVocabularyBookMapper userVocabularyBookMapper;
+    private final UserBookWordMapper userBookWordMapper;
+    private final UserWordMapper userWordMapper;
 
     @Override
     @Transactional
@@ -85,7 +81,8 @@ public class UserVocabularyBookServiceImpl implements UserVocabularyBookService 
     @Transactional
     public void addWordToBook(WordDTO wordDTO) {
         // 检查单词是否已存在
-        UserWord existingWord = userWordMapper.selectByUserIdAndText(wordDTO.getUserId(), wordDTO.getWordText());
+        wordDTO.setUserId(UserContextHolder.getUserId());
+        UserWord existingWord = userWordMapper.selectByUserIdAndText(UserContextHolder.getUserId(), wordDTO.getWordText());
         
         Long wordId;
         if (existingWord == null) {

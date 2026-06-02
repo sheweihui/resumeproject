@@ -31,6 +31,11 @@ public interface UserWordMapper {
      * 根据用户ID和单词文本查询
      */
     UserWord selectByUserIdAndText(@Param("userId") Long userId, @Param("wordText") String wordText);
+
+    /**
+     * 根据用户ID和关键词模糊搜索单词
+     */
+    List<UserWord> selectByUserIdAndKeyword(@Param("userId") Long userId, @Param("keyword") String keyword);
     
     /**
      * 更新用户单词

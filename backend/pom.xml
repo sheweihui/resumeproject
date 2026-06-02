@@ -102,6 +102,7 @@
                     <include>**/*.yml</include>
                     <include>**/*.properties</include>
                     <include>**/*.sql</include>
+                    <include>**/*.lua</include>
                 </includes>
                 <filtering>false</filtering>
             </resource>

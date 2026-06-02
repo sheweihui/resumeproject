@@ -352,6 +352,7 @@ CREATE TABLE `seckill_order`  (
   `user_id` bigint NOT NULL COMMENT '用户ID',
   `activity_id` bigint NOT NULL COMMENT '秒杀活动ID',
   `order_no` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '订单号',
+  `status` tinyint NOT NULL DEFAULT 0 COMMENT '订单状态：0-处理中，1-已完成，2-异常',
   `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_user_activity`(`user_id` ASC, `activity_id` ASC) USING BTREE COMMENT '防止重复购买',
@@ -373,5 +374,22 @@ CREATE TABLE `seckill_message_log`  (
   PRIMARY KEY (`id`) USING BTREE,
   UNIQUE INDEX `uk_message_id`(`message_id` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '秒杀消息日志表' ROW_FORMAT = DYNAMIC;
+
+-- ----------------------------
+-- Table structure for slow_query_log
+-- ----------------------------
+DROP TABLE IF EXISTS `slow_query_log`;
+CREATE TABLE `slow_query_log`  (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '自增ID',
+  `method_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT '方法全名（类名.方法名）',
+  `cost_ms` bigint NOT NULL COMMENT '耗时（毫秒）',
+  `threshold_ms` bigint NOT NULL DEFAULT 500 COMMENT '触发阈值（毫秒）',
+  `result_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL COMMENT '返回类型',
+  `created_at` datetime NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_cost`(`cost_ms` ASC) USING BTREE,
+  INDEX `idx_created`(`created_at` ASC) USING BTREE,
+  INDEX `idx_method`(`method_name`(100) ASC) USING BTREE
+) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '慢查询日志表（AOP自动记录）' ROW_FORMAT = DYNAMIC;
 
 SET FOREIGN_KEY_CHECKS = 1;

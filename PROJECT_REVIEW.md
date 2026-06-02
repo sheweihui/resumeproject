@@ -99,7 +99,6 @@ Python Agent 依赖: 后端(8080), DeepSeek API
 | **批量 AI 查询固定 1s 延迟** | `Thread.sleep(1000)` 写死在循环中 | 用指数退避或干脆并行请求 |
 | **前端代码风格不一致** | 部分页面用 callback，部分用 Promise，部分混用 | 统一为 async/await |
 | **无配置中心** | 配置全在 `application.yml` 中 | 规模增长后考虑 Nacos 或 Spring Cloud Config |
-| **无限流保护** | 秒杀接口无接口级限流（令牌桶/漏桶） | 加 Redis 令牌桶或 Guava RateLimiter 做前置保护 |
 | **无 CI/CD** | 无 GitHub Actions 或 Jenkins 配置 | 加 CI 流水线自动构建 + 测试 |
 | **无 API 文档** | 无 Swagger/SpringDoc 集成 | 加 `springdoc-openapi-starter-webmvc-ui` 自动生成文档 |
 
@@ -156,11 +155,12 @@ Python Agent 依赖: 后端(8080), DeepSeek API
 如果用于实习求职简历，以下是最有价值的技术点：
 
 1. **秒杀系统设计**：Redis 预扣库存 + SETNX 一人一单 + MySQL 乐观锁 + MQ 异步最终处理
-2. **RabbitMQ 消息驱动**：8 队列 DLQ 架构，手动 ACK 重试机制，消息幂等性设计
-3. **AI Agent 集成**：FastAPI 独立部署，DeepSeek Function Calling + RAG 检索增强
-4. **多级缓存策略**：Redis 实时计数 → MQ 异步持久化 → MySQL 最终一致性
-5. **Docker Compose 编排**：4 服务容器化部署
-6. **全栈能力**：Java Spring Boot + Python FastAPI + 微信小程序
+2. **订单状态追踪 + 补偿机制**：订单带 status 字段（处理中/已完成/异常），定时任务扫描超时未完成订单自动重试 MQ
+3. **双层接口限流**：Redis Lua 令牌桶（全局限流）+ 固定窗口（用户级限流），在 Redis 操作前拦截恶意请求
+4. **RabbitMQ 消息驱动**：8 队列 DLQ 架构，手动 ACK 重试机制，消息幂等性设计 + 本地消息表保证可靠投递
+5. **多级缓存策略**：Redis 实时计数 → MQ 异步持久化 → MySQL 最终一致性
+6. **Docker Compose 编排**：4 服务容器化部署
+7. **全栈能力**：Java Spring Boot + Python FastAPI + 微信小程序
 
 ---
 

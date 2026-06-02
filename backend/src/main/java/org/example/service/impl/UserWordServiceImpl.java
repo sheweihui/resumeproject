@@ -1,10 +1,10 @@
 package org.example.service.impl;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.entity.UserWord;
 import org.example.mapper.UserWordMapper;
 import org.example.service.UserWordService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -13,11 +13,11 @@ import java.util.List;
  * 用户单词服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class UserWordServiceImpl implements UserWordService {
-    
-    @Autowired
-    private UserWordMapper userWordMapper;
+
+    private final UserWordMapper userWordMapper;
     
     @Override
     public UserWord getById(Long id) {

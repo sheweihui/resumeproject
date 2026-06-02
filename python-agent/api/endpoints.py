@@ -18,6 +18,10 @@ class Endpoints:
     def search_word(self, keyword: str) -> list[dict]:
         return self._c.get("/word/search", params={"keyword": keyword})
 
+    def search_my_word(self, keyword: str) -> list[dict]:
+        """搜索当前用户个人单词本中的单词"""
+        return self._c.get("/word/my/search", params={"keyword": keyword})
+
     def get_word(self, word_id: int) -> dict:
         return self._c.get(f"/word/{word_id}")
 

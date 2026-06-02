@@ -36,7 +36,12 @@ public interface PublicWordMapper {
      * 根据标签查询
      */
     List<PublicWord> selectByTags(@Param("tags") String tags);
-    
+
+    /**
+     * 根据关键词模糊搜索（前 10 条）
+     */
+    List<PublicWord> selectByKeyword(@Param("keyword") String keyword);
+
     /**
      * 批量插入
      */

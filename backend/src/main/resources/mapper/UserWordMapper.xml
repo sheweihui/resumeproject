@@ -60,6 +60,15 @@
         WHERE user_id = #{userId} AND word_text = #{wordText}
     </select>
 
+    <!-- 根据用户ID和关键词模糊搜索 -->
+    <select id="selectByUserIdAndKeyword" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List" />
+        FROM user_word
+        WHERE user_id = #{userId} AND word_text LIKE CONCAT('%', #{keyword}, '%')
+        ORDER BY created_at DESC
+        LIMIT 10
+    </select>
+
     <!-- 更新用户单词 -->
     <update id="update">
         UPDATE user_word

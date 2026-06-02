@@ -12,10 +12,12 @@
 import json
 import re
 import sys
+import time
+import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
@@ -49,7 +51,6 @@ def init_components():
     rag = RAGRetriever(api_endpoints)
     conversations = ConversationManager()
 
-    # 清理过期对话
     conversations.clean_expired(max_age_days=CONVERSATION_MAX_AGE_DAYS)
 
     if LLM_API_KEY and LLM_API_KEY != "sk-your-deepseek-api-key":
@@ -60,10 +61,33 @@ def init_components():
         logger.warning("LLM_API_KEY 未配置，将使用本地模式回复")
 
 
+def check_backend_connectivity() -> dict:
+    """启动时检查后端连通性"""
+    results = {}
+    try:
+        import requests
+        resp = requests.get(
+            "http://localhost:8080/",
+            timeout=3,
+            headers={"Accept": "application/json"}
+        )
+        results["backend"] = f"connected (HTTP {resp.status_code})"
+        logger.info(f"后端连通性检查: OK (HTTP {resp.status_code})")
+    except requests.ConnectionError:
+        results["backend"] = "unreachable: 无法连接到 localhost:8080"
+        logger.warning("后端连通性检查: 无法连接 - 请确认后端已启动")
+    except Exception as e:
+        results["backend"] = f"unreachable: {e}"
+        logger.warning(f"后端连通性检查: 异常 ({e})")
+    return results
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_components()
+    check_backend_connectivity()
     yield
+    logger.info("Agent 服务关闭")
 
 
 app = FastAPI(
@@ -80,6 +104,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ------------------------------------------------------------
+# 请求中间件（计时 + 请求 ID）
+# ------------------------------------------------------------
+
+@app.middleware("http")
+async def request_logging(request: Request, call_next):
+    request_id = uuid.uuid4().hex[:8]
+    start = time.time()
+    response = await call_next(request)
+    elapsed = (time.time() - start) * 1000
+    logger.info(f"[{request_id}] {request.method} {request.url.path} "
+                f"→ {response.status_code} ({elapsed:.0f}ms)")
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 
 # ------------------------------------------------------------
@@ -133,12 +173,25 @@ def _build_system_prompt(context: str = "") -> str:
 # ------------------------------------------------------------
 # 路由
 # ------------------------------------------------------------
+
 @app.get("/agent/health")
 def health():
+    try:
+        import psutil
+        process = psutil.Process()
+        mem = process.memory_info().rss / 1024 / 1024
+        uptime = time.time() - process.create_time()
+    except ImportError:
+        mem = 0
+        uptime = 0
+
     return {
         "status": "ok",
         "version": AGENT_VERSION,
         "llm_ready": llm is not None,
+        "uptime_s": round(uptime),
+        "memory_mb": round(mem, 1) if mem else 0,
+        "rag_cache_size": rag._cache.size if rag else 0,
     }
 
 
@@ -147,7 +200,7 @@ async def chat(req: ChatRequest):
     if not req.message.strip():
         raise HTTPException(status_code=400, detail="消息不能为空")
 
-    # 1. 如果有 token，注入到 API 客户端供 RAG/工具调用使用
+    # 1. Token 注入
     if req.token:
         api_client.auth.set_token(
             token=req.token,
@@ -159,29 +212,29 @@ async def chat(req: ChatRequest):
     if req.conversation_id:
         conversations.update_metadata(conv_id, user_id=req.user_id)
 
-    logger.info(f"[对话 {conv_id}] 用户: {req.message[:60]}")
+    user_msg_preview = req.message[:60].replace("\n", " ")
+    logger.info(f"[对话 {conv_id}] 用户: {user_msg_preview}")
 
     # 3. 保存用户消息
     conversations.add_message(conv_id, "user", req.message)
 
-    # 4. RAG 检索上下文
+    # 4. RAG 检索
     context = await rag.retrieve_context(req.user_id, req.message)
 
-    # 5. 无 LLM 时走本地回退
+    # 5. 无 LLM 降级
     if not llm:
         reply = _local_fallback(req.message, context)
         conversations.add_message(conv_id, "assistant", reply)
         return ChatResponse(reply=reply, conversation_id=conv_id)
 
-    # 5. 构建消息 + 工具定义
+    # 6. 构建消息 + 工具定义
     history = conversations.get_history(conv_id)
     messages = [{"role": m["role"], "content": m["content"]} for m in history]
     tool_defs = to_openai_tools(build_tools(api_endpoints))
     system_prompt = _build_system_prompt(context)
 
-    # 6. Tool-calling 循环
+    # 7. Tool-calling 循环
     final_reply = ""
-
     for rnd in range(1, TOOL_CALL_MAX_ROUNDS + 1):
         content, tool_calls = llm.chat_with_tools(messages, system_prompt, tool_defs)
 
@@ -202,13 +255,11 @@ async def chat(req: ChatRequest):
             logger.info(f"  执行工具: {fn_name}({fn_args})")
             result = execute_tool(fn_name, fn_args, api_endpoints)
 
-            # 添加 assistant 消息（含 tool_calls）
             assistant_msg = {"role": "assistant", "content": content if content else None}
             if tc:
                 assistant_msg["tool_calls"] = [tc]
             messages.append(assistant_msg)
 
-            # 添加 tool 结果消息
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc["id"],
@@ -219,19 +270,18 @@ async def chat(req: ChatRequest):
         logger.warning(f"[对话 {conv_id}] 工具循环结束但未获得回复")
         final_reply = "抱歉，处理请求时出现了问题，请稍后再试。"
 
-    # 7. 保存 AI 回复
+    # 8. 保存回复
     conversations.add_message(conv_id, "assistant", final_reply)
 
-    # 8. 首次消息时推断话题
-    conv_data = None
+    # 9. 首次消息推断话题
     try:
         conv_data = conversations._load(conv_id)
+        if conv_data and conv_data.get("message_count", 0) <= 2:
+            topic = _detect_topic(req.message)
+            if topic:
+                conversations.update_metadata(conv_id, topic=topic)
     except Exception:
         pass
-    if conv_data and conv_data.get("message_count", 0) <= 2:
-        topic = _detect_topic(req.message)
-        if topic:
-            conversations.update_metadata(conv_id, topic=topic)
 
     logger.info(f"[对话 {conv_id}] AI: {final_reply[:80]}...")
     return ChatResponse(reply=final_reply, conversation_id=conv_id)
@@ -239,11 +289,9 @@ async def chat(req: ChatRequest):
 
 @app.post("/agent/word/enrich", response_model=WordEnrichResponse)
 def enrich_word(req: WordEnrichRequest):
-    """获取单词的 AI 补全信息（音标、释义、例句等）"""
     word_text = req.word_text.strip()
     if not word_text:
         raise HTTPException(status_code=400, detail="单词不能为空")
-
     if not llm:
         raise HTTPException(status_code=503, detail="LLM 不可用，无法补全单词")
 
@@ -273,14 +321,12 @@ def enrich_word(req: WordEnrichRequest):
 
 @app.get("/agent/conversations/{conv_id}/history")
 def get_history(conv_id: str):
-    """获取指定对话的历史"""
     messages = conversations.get_history(conv_id, limit=50)
     return {"conversation_id": conv_id, "messages": messages}
 
 
 @app.delete("/agent/conversations/{conv_id}")
 def clear_conversation(conv_id: str):
-    """清空对话"""
     conversations.clear(conv_id)
     return {"status": "ok"}
 
@@ -290,7 +336,6 @@ def clear_conversation(conv_id: str):
 # ------------------------------------------------------------
 
 def _safe_parse_json(text: str) -> dict:
-    """安全解析 JSON 字符串，失败返回空 dict"""
     try:
         return json.loads(text)
     except (json.JSONDecodeError, TypeError):
@@ -298,10 +343,8 @@ def _safe_parse_json(text: str) -> dict:
 
 
 def _detect_topic(message: str) -> str:
-    """根据消息内容推断对话话题"""
     m = message.lower()
 
-    # 包含英文单词
     if re.search(r"[a-z]{3,}", m) and not re.match(
         r"^(你好|hello|hi|help|嗨|哈喽|您好)$", m.strip()
     ):
@@ -329,27 +372,27 @@ def _detect_topic(message: str) -> str:
 # 本地回退（无 LLM 时使用）
 # ------------------------------------------------------------
 def _local_fallback(message: str, context: str = "") -> str:
-    """当 LLM 不可用时，使用内置简单逻辑回复"""
     msg = message.lower()
 
     if context and ("单词:" in context or "释义:" in context):
         return f"我找到了相关信息：\n\n{context}\n\n还想了解其他单词吗？"
 
     if "hello" in msg or "hi" in msg or "你好" in msg:
-        return "你好！我是你的英语学习助手。我可以帮你查单词、推荐学习内容、测试词汇量。请问有什么可以帮你的？"
+        return ("你好！我是你的英语学习助手。我可以帮你查单词、"
+                "推荐学习内容、测试词汇量。请问有什么可以帮你的？")
 
     if any(kw in msg for kw in ("建议", "怎么学", "方法", "如何背")):
         return ("背单词小建议：\n\n"
-                "1. **少量多次**：每天背 10-15 个新词，不要贪多\n"
-                "2. **结合例句**：把单词放到句子里记，不要死记硬背\n"
-                "3. **定期复习**：第1天、第3天、第7天、第30天复习\n"
-                "4. **多感官结合**：看拼写、听发音、写下来、读出来\n"
-                "5. **用起来**：试着用新学的单词造句或写日记\n\n"
+                "1. 少量多次：每天背 10-15 个新词，不要贪多\n"
+                "2. 结合例句：把单词放到句子里记，不要死记硬背\n"
+                "3. 定期复习：第1天、第3天、第7天、第30天复习\n"
+                "4. 多感官结合：看拼写、听发音、写下来、读出来\n"
+                "5. 用起来：试着用新学的单词造句或写日记\n\n"
                 "需要我帮你制定学习计划吗？")
 
     if "测试" in msg or "题目" in msg or "考考" in msg:
         return ("好的！来测试一下你的词汇量：\n\n"
-                "**'beautiful' 是什么意思？**\n\n"
+                "'beautiful' 是什么意思？\n\n"
                 "A. 聪明的\nB. 美丽的\nC. 勇敢的\nD. 善良的\n\n"
                 "告诉我你的答案！")
 
@@ -362,10 +405,10 @@ def _local_fallback(message: str, context: str = "") -> str:
         return f"根据你的学习数据：\n\n{context}\n\n有什么具体想了解的吗？"
 
     return ("收到你的消息了！你可以：\n\n"
-            "• **查单词**：直接输入英文单词\n"
-            "• **学英语**：输入 '学习建议'\n"
-            "• **测词汇**：输入 '测试'\n"
-            "• **分析句子**：发送一个英文句子\n\n"
+            "* 查单词：直接输入英文单词\n"
+            "* 学英语：输入'学习建议'\n"
+            "* 测词汇：输入'测试'\n"
+            "* 分析句子：发送一个英文句子\n\n"
             "有什么我能帮你的吗？")
 
 
@@ -379,7 +422,6 @@ def main():
 
     import uvicorn
     logger.info(f"启动 {AGENT_NAME} v{AGENT_VERSION} → http://{AGENT_HOST}:{AGENT_PORT}")
-    logger.info(f"LLM 状态: {'已就绪' if llm else '未配置（使用本地模式）'}")
     uvicorn.run(app, host=AGENT_HOST, port=AGENT_PORT)
 
 

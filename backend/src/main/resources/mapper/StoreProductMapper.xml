@@ -142,4 +142,42 @@
         WHERE book_id = #{id}
     </select>
 
+    <!-- 条件分页查询（支持分类/难度过滤 + 排序 + 分页） -->
+    <select id="selectByFilter" resultMap="BaseResultMap">
+        SELECT sp.* FROM store_product sp
+        WHERE sp.status = 1
+        <if test="category != null">
+            AND EXISTS (
+                SELECT 1 FROM public_vocabulary_book pvb
+                WHERE pvb.id = sp.reference_id AND pvb.category = #{category}
+            )
+        </if>
+        <if test="difficulty != null">
+            AND EXISTS (
+                SELECT 1 FROM public_vocabulary_book pvb
+                WHERE pvb.id = sp.reference_id AND pvb.difficulty = #{difficulty}
+            )
+        </if>
+        ORDER BY ${orderBy}
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- 条件计数 -->
+    <select id="countByFilter" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM store_product sp
+        WHERE sp.status = 1
+        <if test="category != null">
+            AND EXISTS (
+                SELECT 1 FROM public_vocabulary_book pvb
+                WHERE pvb.id = sp.reference_id AND pvb.category = #{category}
+            )
+        </if>
+        <if test="difficulty != null">
+            AND EXISTS (
+                SELECT 1 FROM public_vocabulary_book pvb
+                WHERE pvb.id = sp.reference_id AND pvb.difficulty = #{difficulty}
+            )
+        </if>
+    </select>
+
 </mapper>

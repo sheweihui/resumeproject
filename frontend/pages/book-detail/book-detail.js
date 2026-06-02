@@ -1,4 +1,5 @@
-const { vocabAPI, wordAPI } = require('../../utils/api')
+const { vocabAPI, wordAPI, bookWordAPI } = require('../../utils/api')
+const { getUserId } = require('../../utils/helper')
 
 Page({
   data: {
@@ -12,6 +13,7 @@ Page({
     showWordDetail: false,
     showEditModal: false,
     selectedWord: null,
+    noteText: '',
     editWordId: null,
     batchMode: false,
     selectedWords: {},
@@ -87,11 +89,67 @@ Page({
 
   showWordDetail(e) {
     const word = e.currentTarget.dataset.word
-    this.setData({ selectedWord: word, showWordDetail: true })
+    this.setData({
+      selectedWord: word,
+      noteText: word.note || '',
+      showWordDetail: true
+    })
   },
 
   closeWordDetail() {
-    this.setData({ showWordDetail: false })
+    this.setData({ showWordDetail: false, noteText: '' })
+  },
+
+  onNoteInput(e) {
+    this.setData({ noteText: e.detail.value })
+  },
+
+  /** 标记单词为已掌握 */
+  async markAsMastered() {
+    const userId = getUserId()
+    if (!userId) return
+    const { bookId, selectedWord } = this.data
+
+    try {
+      wx.showLoading({ title: '标记中...' })
+      await bookWordAPI.markAsMastered(userId, bookId, selectedWord.id)
+      wx.hideLoading()
+      wx.showToast({ title: '已标记为掌握', icon: 'success' })
+      this.setData({
+        'selectedWord.mastered': true,
+        showWordDetail: false
+      })
+      this.loadWords()
+    } catch (err) {
+      wx.hideLoading()
+      wx.showToast({ title: '标记失败', icon: 'none' })
+    }
+  },
+
+  /** 保存单词笔记 */
+  async saveNote() {
+    const userId = getUserId()
+    if (!userId) return
+    const { bookId, selectedWord, noteText } = this.data
+    if (!noteText.trim()) {
+      wx.showToast({ title: '请输入笔记内容', icon: 'none' })
+      return
+    }
+
+    try {
+      wx.showLoading({ title: '保存中...' })
+      await bookWordAPI.addNote(userId, bookId, selectedWord.id, noteText.trim())
+      wx.hideLoading()
+      wx.showToast({ title: '笔记已保存', icon: 'success' })
+      this.setData({
+        'selectedWord.note': noteText.trim(),
+        showWordDetail: false
+      })
+      this.loadWords()
+    } catch (err) {
+      wx.hideLoading()
+      wx.showToast({ title: '保存失败', icon: 'none' })
+    }
   },
 
   showAddWordModal() {

@@ -2,13 +2,14 @@ package org.example.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.config.AiConfig;
 import org.example.dto.AiWordInfo;
 import org.example.entity.UserWord;
 import org.example.mapper.UserWordMapper;
 import org.example.service.AiWordService;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,103 +19,56 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 /**
- * DeepSeek单词服务实现类
+ * AI单词服务实现类 — 通过 Python Agent 获取单词信息
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class AiWordServiceImpl implements AiWordService {
-    
-    @Autowired
-    private AiConfig aiConfig;
-    
-    @Autowired
-    private UserWordMapper userWordMapper;
-    
-    private final RestTemplate restTemplate = new RestTemplate();
+
+    private final AiConfig aiConfig;
+    private final UserWordMapper userWordMapper;
+    private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Value("${agent.base-url:http://localhost:8000}")
+    private String agentBaseUrl;
     
     /**
-     * 构建AI提示词
-     */
-    private String buildPrompt(String wordText) {
-        return String.format(
-            "请提供以下英文单词的详细信息，以JSON格式返回：\n" +
-            "单词：%s\n\n" +
-            "要求返回以下字段：\n" +
-            "- wordText: 单词本身\n" +
-            "- phonetic: 音标（使用国际音标）\n" +
-            "- partOfSpeech: 词性（如 n., v., adj., adv. 等）\n" +
-            "- definition: 中文释义（简洁明了）\n" +
-            "- exampleSentence: 英文例句（简单易懂）\n" +
-            "- exampleTranslation: 例句的中文翻译\n\n" +
-            "只返回JSON数据，不要有其他文字说明。",
-            wordText
-        );
-    }
-    
-    /**
-     * 调用DeepSeek API获取单词信息
+     * 通过 Python Agent 获取单词信息
      */
     private AiWordInfo callAiApi(String wordText) {
         if (!aiConfig.isEnabled()) {
-            throw new RuntimeException("DeepSeek功能未启用，请在配置文件中设置 ai.enabled=true");
+            throw new RuntimeException("AI功能未启用，请在配置文件中设置 ai.enabled=true");
         }
-        
-        if (aiConfig.getApiKey() == null || aiConfig.getApiKey().isEmpty()) {
-            throw new RuntimeException("DeepSeek API密钥未配置，请在配置文件中设置 ai.api-key");
-        }
-        
+
         try {
-            // 构建请求头
+            // 请求 Python Agent
+            String url = agentBaseUrl + "/agent/word/enrich";
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(aiConfig.getApiKey());
-            
-            // DeepSeek API地址
-            String url = aiConfig.getBaseUrl() + "/chat/completions";
-            Map<String, Object> requestBody = buildDeepSeekRequest(wordText);
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
-            
-            // 发送请求
-            ResponseEntity<String> response = restTemplate.exchange(
-                url,
-                HttpMethod.POST,
-                request,
-                String.class
-            );
-            
-            // 解析响应
-            JsonNode rootNode = objectMapper.readTree(response.getBody());
-            // DeepSeek响应格式与OpenAI兼容
-            String content = rootNode.path("choices").get(0).path("message").path("content").asText();
-            
-            log.debug("🤖 [DeepSeek] 原始响应: {}", content.length() > 200 ? content.substring(0, 200) + "..." : content);
+            Map<String, Object> body = new HashMap<>();
+            body.put("word_text", wordText);
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+
+            ResponseEntity<Map> response = restTemplate.exchange(
+                url, HttpMethod.POST, request, Map.class);
+
+            Map<String, Object> agentResp = response.getBody();
+            String content = agentResp != null ? (String) agentResp.get("content") : null;
+
+            if (content == null || content.isEmpty()) {
+                throw new RuntimeException("Agent 返回为空");
+            }
+
+            log.debug("🤖 [Agent] 单词补全响应: {}", content.length() > 200 ? content.substring(0, 200) + "..." : content);
             return parseAiResponse(content);
-            
+
         } catch (Exception e) {
-            log.error("调用DeepSeek API失败: {}", e.getMessage(), e);
+            log.error("调用 Agent 获取单词信息失败: {}", e.getMessage(), e);
             throw new RuntimeException("获取单词信息失败: " + e.getMessage());
         }
-    }
-    
-    /**
-     * 构建DeepSeek API请求体
-     */
-    private Map<String, Object> buildDeepSeekRequest(String wordText) {
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", aiConfig.getModel());
-        
-        List<Map<String, String>> messages = new ArrayList<>();
-        Map<String, String> message = new HashMap<>();
-        message.put("role", "user");
-        message.put("content", buildPrompt(wordText));
-        messages.add(message);
-        
-        requestBody.put("messages", messages);
-        requestBody.put("temperature", 0.7);
-        requestBody.put("max_tokens", 500);
-        
-        return requestBody;
     }
     
     /**
@@ -218,23 +172,23 @@ public class AiWordServiceImpl implements AiWordService {
         }
         wordText = wordText.trim();
 
-        // 调用DeepSeek获取单词信息
+        // 调用 AI 获取单词信息
         AiWordInfo wordInfo = callAiApi(wordText);
         
-        log.debug("📊 [DeepSeek数据] 单词: {} | 音标: {} | 词性: {} | 释义长度: {}",
+        log.debug("📊 [AI数据] 单词: {} | 音标: {} | 词性: {} | 释义长度: {}",
                 wordInfo.getWordText(), wordInfo.getPhonetic(), wordInfo.getPartOfSpeech(),
                 wordInfo.getDefinition() != null ? wordInfo.getDefinition().length() : 0);
-        
-        // 验证DeepSeek返回的数据
+
+        // 验证 AI 返回的数据
         if (wordInfo.getWordText() == null || wordInfo.getWordText().trim().isEmpty()) {
-            // 如果DeepSeek没有返回wordText，使用输入的单词
-            log.warn("⚠️  [DeepSeek警告] 未返回wordText，使用输入值: {}", wordText);
+            // 如果AI没有返回wordText，使用输入的单词
+            log.warn("⚠️  [AI警告] 未返回wordText，使用输入值: {}", wordText);
             wordInfo.setWordText(wordText);
         }
-        
+
         if (wordInfo.getDefinition() == null || wordInfo.getDefinition().trim().isEmpty()) {
-            log.error("❌ [DeepSeek错误] 未能获取单词释义 | 完整响应: {}", wordInfo);
-            throw new RuntimeException("DeepSeek未能获取单词释义，请重试。可能是API格式不匹配或网络问题。");
+            log.error("❌ [AI错误] 未能获取单词释义 | 完整响应: {}", wordInfo);
+            throw new RuntimeException("AI未能获取单词释义，请重试。可能是Agent或DeepSeek服务异常。");
         }
         
         // 构建UserWord实体

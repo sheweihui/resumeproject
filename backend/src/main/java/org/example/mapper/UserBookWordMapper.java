@@ -56,4 +56,24 @@ public interface UserBookWordMapper {
      * 统计单词书的单词数量
      */
     int countByBookId(@Param("bookId") Long bookId);
+
+    /**
+     * 统计用户所有单词总数
+     */
+    int countByUserId(@Param("userId") Long userId);
+
+    /**
+     * 统计用户已掌握的单词数
+     */
+    int countMasteredByUserId(@Param("userId") Long userId);
+
+    /**
+     * 统计用户今日复习的单词数
+     */
+    int countReviewedTodayByUserId(@Param("userId") Long userId);
+
+    /**
+     * 统计用户今日新学单词数
+     */
+    int countNewTodayByUserId(@Param("userId") Long userId);
 }

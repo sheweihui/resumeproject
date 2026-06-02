@@ -111,33 +111,36 @@ Page({
 
   loadStudyStats() {
     return studyRecordAPI.getStudyStats().then(res => {
-      const level = calculateLevel(res.totalWords || 0)
+      // res = { code: 200, message: "...", data: { totalWords, todayLearned, todayReviewed, streakDays, ... } }
+      const stats = res.data || {}
+      const level = calculateLevel(stats.totalWords || 0)
       const userInfo = getUserInfo()
       const updatedUserInfo = { ...userInfo, level }
       wx.setStorageSync('userInfo', updatedUserInfo)
 
       this.setData({
         stats: [
-          { label: '今日学习', value: res.todayWords || '0', unit: '词' },
-          { label: '本周学习', value: res.weekWords || '0', unit: '词' },
-          { label: '累计学习', value: res.totalWords || '0', unit: '词' },
-          { label: '学习天数', value: res.studyDays || '0', unit: '天' }
+          { label: '今日学习', value: stats.todayLearned || '0', unit: '词' },
+          { label: '今日复习', value: stats.todayReviewed || '0', unit: '词' },
+          { label: '累计学习', value: stats.totalWords || '0', unit: '词' },
+          { label: '学习天数', value: stats.streakDays || '0', unit: '天' }
         ],
-        'userInfo.level': level
+        'userInfo.level': level,
+        // 也设置掌握进度（复用 study stats 数据）
+        progress: {
+          mastered: stats.masteredWords || 0,
+          total: stats.totalWords || 0,
+          percent: stats.totalWords > 0
+            ? Math.round((stats.masteredWords || 0) / stats.totalWords * 100)
+            : 0
+        }
       })
     }).catch(() => {})
   },
 
   loadVocabularyProgress() {
-    const userId = getUserId()
-    if (!userId) return Promise.resolve()
-    return vocabAPI.getVocabList(userId).then(res => {
-      const list = res || []
-      const mastered = list.filter(item => item.mastered === 1).length
-      const total = list.length
-      const percent = total > 0 ? Math.round((mastered / total) * 100) : 0
-      this.setData({ progress: { mastered, total, percent } })
-    }).catch(() => {})
+    // 数据已从 loadStudyStats 中获取，无需重复请求
+    return Promise.resolve()
   },
 
   goToMenuItem(e) {

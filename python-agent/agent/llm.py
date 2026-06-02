@@ -1,8 +1,9 @@
 """LLM 集成：对接 DeepSeek API（兼容 OpenAI SDK）"""
 
 import json
+import time
 from typing import Optional
-from openai import OpenAI, APIError
+from openai import OpenAI, APIError, APITimeoutError, RateLimitError
 from loguru import logger
 
 from config.settings import (
@@ -12,11 +13,13 @@ from config.settings import (
     LLM_TIMEOUT,
     LLM_MAX_TOKENS,
     LLM_TEMPERATURE,
+    LLM_RETRY_MAX,
+    LLM_RETRY_DELAY,
 )
 
 
 class LLMClient:
-    """封装 LLM 调用"""
+    """封装 LLM 调用，支持重试与超时控制"""
 
     def __init__(
         self,
@@ -33,6 +36,63 @@ class LLMClient:
             timeout=LLM_TIMEOUT,
         )
 
+    def _call(self, **kwargs) -> tuple[str, list[dict]]:
+        """
+        统一的 LLM 调用入口，包含重试逻辑。
+
+        返回 (content, tool_calls_list)
+        """
+        last_error = None
+        for attempt in range(1, LLM_RETRY_MAX + 1):
+            try:
+                if attempt > 1:
+                    logger.info(f"LLM 重试第 {attempt} 次")
+                    time.sleep(LLM_RETRY_DELAY)
+
+                response = self.client.chat.completions.create(**kwargs)
+                message = response.choices[0].message
+
+                content = message.content or ""
+                tool_calls = []
+                if message.tool_calls:
+                    for tc in message.tool_calls:
+                        tool_calls.append({
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
+                        })
+
+                return content, tool_calls
+
+            except RateLimitError as e:
+                last_error = e
+                wait = LLM_RETRY_DELAY * (2 ** (attempt - 1))  # 指数退避
+                logger.warning(f"LLM 速率限制 (尝试 {attempt}/{LLM_RETRY_MAX}), 等待 {wait}s")
+                time.sleep(wait)
+
+            except APITimeoutError as e:
+                last_error = e
+                logger.warning(f"LLM 超时 (尝试 {attempt}/{LLM_RETRY_MAX})")
+
+            except APIError as e:
+                # 服务端错误才重试，客户端错误直接返回
+                if 500 <= (e.status_code or 0) <= 599 and attempt < LLM_RETRY_MAX:
+                    last_error = e
+                    logger.warning(f"LLM 服务端错误 {e.status_code} (尝试 {attempt}/{LLM_RETRY_MAX})")
+                else:
+                    logger.error(f"LLM API 错误: {e}")
+                    return f"抱歉，AI 服务出错了: {e.message}", []
+
+            except Exception as e:
+                logger.exception("LLM 调用异常")
+                return f"抱歉，处理请求时发生了错误: {str(e)}", []
+
+        logger.error(f"LLM 调用失败（已重试 {LLM_RETRY_MAX} 次）: {last_error}")
+        return "抱歉，AI 服务暂时不可用，请稍后重试。", []
+
     def chat(
         self,
         messages: list[dict],
@@ -44,28 +104,15 @@ class LLMClient:
             full_messages.append({"role": "system", "content": system_prompt})
         full_messages.extend(messages)
 
-        try:
-            logger.debug(f"LLM 请求: model={self.model}, messages={len(full_messages)}条")
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=full_messages,
-                temperature=LLM_TEMPERATURE,
-                max_tokens=LLM_MAX_TOKENS,
-            )
-            reply = response.choices[0].message.content or ""
-            logger.debug(f"LLM 回复: {reply[:100]}...")
-            return reply
-
-        except APIError as e:
-            logger.error(f"LLM API 错误: {e}")
-            return f"抱歉，AI 服务出错了: {e.message}"
-        except Exception as e:
-            logger.exception(f"LLM 调用异常")
-            return f"抱歉，处理请求时发生了错误: {str(e)}"
-
-    # ============================================================
-    # Function Calling 支持
-    # ============================================================
+        logger.debug(f"LLM 请求: model={self.model}, messages={len(full_messages)}条")
+        content, _ = self._call(
+            model=self.model,
+            messages=full_messages,
+            temperature=LLM_TEMPERATURE,
+            max_tokens=LLM_MAX_TOKENS,
+        )
+        logger.debug(f"LLM 回复: {content[:100]}...")
+        return content
 
     def chat_with_tools(
         self,
@@ -77,8 +124,8 @@ class LLMClient:
         发送消息并支持工具/函数调用。
 
         返回 (content, tool_calls_list):
-          - content: 文本回复（如果 LLM 只返回工具调用则为空字符串）
-          - tool_calls_list: 工具调用列表，每项含 id/type/function/name/arguments
+          - content: 文本回复
+          - tool_calls_list: 工具调用列表
         """
         full_messages = []
         if system_prompt:
@@ -95,31 +142,8 @@ class LLMClient:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
 
-        try:
-            logger.debug(f"LLM 请求 (tools={len(tools or [])}): model={self.model}, "
-                         f"messages={len(full_messages)}条")
-            response = self.client.chat.completions.create(**kwargs)
-            message = response.choices[0].message
-
-            content = message.content or ""
-            tool_calls = []
-            if message.tool_calls:
-                for tc in message.tool_calls:
-                    tool_calls.append({
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments,
-                        },
-                    })
-
-            logger.debug(f"LLM 回复: content_len={len(content)}, tool_calls={len(tool_calls)}")
-            return content, tool_calls
-
-        except APIError as e:
-            logger.error(f"LLM API 错误: {e}")
-            return f"抱歉，AI 服务出错了: {e.message}", []
-        except Exception as e:
-            logger.exception("LLM 调用异常")
-            return f"抱歉，处理请求时发生了错误: {str(e)}", []
+        logger.debug(f"LLM 请求 (tools={len(tools or [])}): model={self.model}, "
+                     f"messages={len(full_messages)}条")
+        content, tool_calls = self._call(**kwargs)
+        logger.debug(f"LLM 回复: content_len={len(content)}, tool_calls={len(tool_calls)}")
+        return content, tool_calls

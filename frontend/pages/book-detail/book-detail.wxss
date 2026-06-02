@@ -395,3 +395,81 @@
 .form-item.half {
   flex: 1;
 }
+
+/* ===== 单词详情操作区 ===== */
+.detail-actions {
+  margin: 24rpx 0;
+  display: flex;
+  gap: 16rpx;
+}
+
+.detail-action-btn {
+  flex: 1;
+  padding: 20rpx;
+  border-radius: var(--radius-md);
+  background: var(--bg-page);
+  text-align: center;
+  border: 1rpx solid var(--border);
+  font-size: 28rpx;
+  color: var(--text-secondary);
+}
+
+.detail-action-btn:active {
+  opacity: 0.7;
+}
+
+.detail-action-btn.mastered {
+  background: rgba(103, 194, 58, 0.1);
+  border-color: rgba(103, 194, 58, 0.3);
+  color: #67c23a;
+}
+
+/* ===== 笔记区 ===== */
+.detail-note-section {
+  margin: 20rpx 0;
+}
+
+.detail-note-box {
+  display: flex;
+  gap: 12rpx;
+  align-items: flex-start;
+}
+
+.note-input {
+  flex: 1;
+  min-height: 80rpx;
+  padding: 16rpx 20rpx;
+  background: var(--bg-page);
+  border-radius: var(--radius-sm);
+  font-size: 26rpx;
+  border: 1rpx solid var(--border);
+}
+
+.note-save-btn {
+  padding: 16rpx 24rpx;
+  border-radius: var(--radius-sm);
+  background: #d8d8d8;
+  flex-shrink: 0;
+  font-size: 26rpx;
+  color: #fff;
+  text-align: center;
+}
+
+.note-save-btn.active {
+  background: var(--purple-gradient);
+}
+
+.note-save-btn:active {
+  opacity: 0.85;
+}
+
+.detail-note-display {
+  font-size: 26rpx;
+  color: var(--text-secondary);
+  background: #fdf6ec;
+  padding: 16rpx 20rpx;
+  border-radius: var(--radius-sm);
+  margin-top: 12rpx;
+  display: block;
+  line-height: 1.6;
+}

@@ -55,13 +55,15 @@ Page({
 
   loadStudyStats() {
     return studyRecordAPI.getStudyStats().then(res => {
-      const todayWords = res.todayWords || 0
-      const targetWords = res.targetWords || 50
+      // res = { code: 200, message: "...", data: { totalWords, todayLearned, todayReviewed, streakDays, ... } }
+      const stats = res.data || {}
+      const todayWords = stats.todayLearned || 0
+      const targetWords = 50
       const progress = Math.min(Math.round((todayWords / targetWords) * 100), 100)
       this.setData({
         todayWords,
-        totalWords: res.totalWords || 0,
-        streak: res.studyDays || 0,
+        totalWords: stats.totalWords || 0,
+        streak: stats.streakDays || 0,
         targetWords,
         progress
       })

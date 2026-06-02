@@ -1,11 +1,14 @@
 """Agent 工具集 — 可被 Agent 调用的能力"""
 
-from typing import Callable
+import functools
+import threading
+from typing import Callable, Optional
 from dataclasses import dataclass, field
 from loguru import logger
 
 from api.endpoints import Endpoints
 from api.client import ApiError
+from config.settings import TOOL_EXECUTION_TIMEOUT
 
 
 @dataclass
@@ -14,6 +17,7 @@ class Tool:
     description: str
     fn: Callable
     parameters: dict = field(default_factory=dict)
+    timeout: int = TOOL_EXECUTION_TIMEOUT  # 单工具执行超时（秒）
 
 
 def build_tools(api: Endpoints) -> list[Tool]:
@@ -55,7 +59,7 @@ def build_tools(api: Endpoints) -> list[Tool]:
         Tool(
             name="get_user_books",
             description="获取用户的单词本列表",
-            fn=lambda: api.get_book_list(api._c.auth.get_user_id()),
+            fn=lambda: api.get_book_list(0),
         ),
         Tool(
             name="get_book_words",
@@ -64,6 +68,30 @@ def build_tools(api: Endpoints) -> list[Tool]:
             parameters={"book_id": "单词本 ID"},
         ),
     ]
+
+
+# ============================================================
+# 工具映射缓存（避免每次执行都重建）
+# ============================================================
+
+@functools.lru_cache(maxsize=1)
+def _build_tool_map(api_id: int) -> dict[str, Tool]:
+    """构建工具名→工具的映射（缓存，api_id 仅用于区分实例）"""
+    # 实际 api 实例无法 hash，此处仅在第一次调用时构建
+    raise RuntimeError("不应直接调用，请使用 get_tool_map()")
+
+
+_tool_map_cache: dict[str, Tool] = {}
+_tool_map_owner: object = None
+
+
+def get_tool_map(api: Endpoints) -> dict[str, Tool]:
+    """获取全局工具映射（按需构建，仅一次）"""
+    global _tool_map_cache, _tool_map_owner
+    if _tool_map_owner is not api:
+        _tool_map_cache = {t.name: t for t in build_tools(api)}
+        _tool_map_owner = api
+    return _tool_map_cache
 
 
 # ============================================================
@@ -98,20 +126,47 @@ def to_openai_tools(tools: list[Tool]) -> list[dict]:
 
 
 # ============================================================
-# 工具执行
+# 工具执行（含超时控制）
 # ============================================================
+
+def _run_with_timeout(fn: Callable, args: dict, timeout: int):
+    """在单独的线程中执行工具函数，支持超时中断"""
+    result_container = []
+    exception_container = []
+
+    def target():
+        try:
+            result_container.append(fn(**args))
+        except Exception as e:
+            exception_container.append(e)
+
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout)
+
+    if thread.is_alive():
+        raise TimeoutError(f"工具执行超时（{timeout}s）")
+
+    if exception_container:
+        raise exception_container[0]
+
+    return result_container[0]
+
 
 def execute_tool(tool_name: str, arguments: dict, api: Endpoints) -> str:
     """执行工具并返回可读的结果字符串"""
-    tool_map = {t.name: t for t in build_tools(api)}
+    tool_map = get_tool_map(api)
     tool = tool_map.get(tool_name)
     if not tool:
         return f"错误：未知操作 '{tool_name}'"
 
     logger.info(f"执行工具: {tool_name} | 参数: {arguments}")
     try:
-        result = tool.fn(**arguments)
+        result = _run_with_timeout(tool.fn, arguments, tool.timeout)
         return _format_tool_result(tool_name, result)
+    except TimeoutError as e:
+        logger.error(f"工具 {tool_name} 执行超时")
+        return f"操作超时: {e}"
     except ApiError as e:
         logger.error(f"工具 {tool_name} API 错误: {e}")
         return f"操作失败: {e}"
@@ -129,9 +184,7 @@ def _format_tool_result(name: str, result) -> str:
     if result is None:
         return "操作成功（无返回数据）"
 
-    if name == "search_word":
-        return _format_word_result(result)
-    if name == "ai_fill_word":
+    if name in ("search_word", "ai_fill_word"):
         return _format_word_result(result)
     if name == "get_points_balance":
         return f"当前积分余额: {result.get('balance', 'N/A')}"
@@ -150,7 +203,6 @@ def _format_tool_result(name: str, result) -> str:
 
 
 def _format_word_result(words) -> str:
-    """格式化单词查询结果"""
     if isinstance(words, list) and words:
         return _format_single_word(words[0])
     if isinstance(words, dict):
@@ -178,7 +230,7 @@ def _format_single_word(w: dict) -> str:
 def _format_flash_sales(sales) -> str:
     if not sales:
         return "当前没有秒杀活动"
-    lines = ["⚡ 秒杀活动列表:"]
+    lines = ["秒杀活动列表:"]
     for s in sales:
         lines.append(f"  [{s.get('id')}] {s.get('name', '')} — "
                      f"¥{s.get('price', 0)} | 剩余: {s.get('stock', 0)}")
@@ -190,7 +242,7 @@ def _format_book_list(books) -> str:
         return "暂无数据"
     if isinstance(books, dict) and "records" in books:
         books = books["records"]
-    lines = ["📚 单词书列表:"]
+    lines = ["单词书列表:"]
     for b in books[:10]:
         name = b.get("bookName") or b.get("name", "")
         price = b.get("price", "免费")

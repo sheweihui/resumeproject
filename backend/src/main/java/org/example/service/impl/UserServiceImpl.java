@@ -1,20 +1,22 @@
 package org.example.service.impl;
 
+import lombok.RequiredArgsConstructor;
 import cn.hutool.crypto.digest.BCrypt;
 import org.example.entity.User;
 import org.example.mapper.UserMapper;
+import org.example.service.UserPointsAccountService;
 import org.example.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
  * 用户服务实现类
  */
+@RequiredArgsConstructor
 @Service
 public class UserServiceImpl implements UserService {
-    
-    @Autowired
-    private UserMapper userMapper;
+
+    private final UserMapper userMapper;
+    private final UserPointsAccountService userPointsAccountService;
     
     @Override
     public User register(String username, String password, String nickname) {
@@ -53,5 +55,17 @@ public class UserServiceImpl implements UserService {
     @Override
     public User getById(Long id) {
         return userMapper.selectById(id);
+    }
+
+    @Override
+    public void deductPoints(long id, long points, String orderNumber) {
+        userPointsAccountService.deductPoints(
+            id,
+            (int) points,
+            1,
+            "购买商品扣积分",
+            null,
+            orderNumber
+        );
     }
 }

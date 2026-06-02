@@ -1,27 +1,32 @@
 package org.example.service.impl;
 
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.annotation.Cacheable;
 import org.example.annotation.MethodRunTime;
 import org.example.common.PageResult;
 import org.example.config.RabbitMQConfig;
+import org.example.mq.producer.MessageProducer;
 import org.example.context.UserContextHolder;
 import org.example.dto.FlashSaleDTO;
 import org.example.dto.StoreBookQueryDTO;
 import org.example.entity.*;
 import org.example.mapper.*;
 import org.example.service.StoreService;
+import org.example.constant.RedisKeys;
+import org.example.exception.RateLimitException;
+import org.example.utils.RateLimiter;
 import org.example.utils.RedisUtil;
 import org.example.vo.StoreBookVO;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -30,92 +35,90 @@ import java.util.stream.Collectors;
  * 商店服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class StoreServiceImpl implements StoreService {
-    
-    @Autowired
-    private StoreProductMapper storeProductMapper;
-    
-    @Autowired
-    private StorePurchaseRecordMapper storePurchaseRecordMapper;
-    
-    @Autowired
-    private UserVocabularyBookMapper userVocabularyBookMapper;
-    
-    @Autowired
-    private UserBookWordMapper userBookWordMapper;
-    
-    @Autowired
-    private PublicBookWordMapper publicBookWordMapper;
-    
-    @Autowired
-    private RedisUtil redisUtil;
-    
-    @Autowired
-    private UserMapper userMapper;
-    @Autowired
-    private PublicVocabularyBookMapper publicVocabularyBookMapper;
-    @Autowired
-    private SeckillActivityMapper seckillActivityMapper;
-    @Autowired
-    private SeckillOrderMapper seckillOrderMapper;
-    @Autowired
-    private RabbitMQConfig rabbitMQConfig;
+
+    private final StoreProductMapper storeProductMapper;
+    private final StorePurchaseRecordMapper storePurchaseRecordMapper;
+    private final UserVocabularyBookMapper userVocabularyBookMapper;
+    private final UserBookWordMapper userBookWordMapper;
+    private final PublicBookWordMapper publicBookWordMapper;
+    private final RedisUtil redisUtil;
+    private final UserMapper userMapper;
+    private final PublicVocabularyBookMapper publicVocabularyBookMapper;
+    private final SeckillActivityMapper seckillActivityMapper;
+    private final SeckillOrderMapper seckillOrderMapper;
+    private final RabbitMQConfig rabbitMQConfig;
+    private final MessageProducer messageProducer;
+    private final SeckillMessageLogMapper seckillMessageLogMapper;
+    private final RateLimiter rateLimiter;
 
     @Override
-    @Cacheable(key = "'store:books:' + #queryDTO.page + ':' + #queryDTO.size + ':' + (#queryDTO.category != null ? #queryDTO.category : 'all') + ':' + (#queryDTO.difficulty != null ? #queryDTO.difficulty : 'all')", expire = 1800)
+    @MethodRunTime("商店service层-查询图书列表")
     public PageResult<StoreBookVO> queryStoreBooks(StoreBookQueryDTO queryDTO) {
-        log.debug("📚 [商店] 查询单词书列表 | 分类: {} | 难度: {}", 
-                queryDTO.getCategory(), queryDTO.getDifficulty());
-        
-        // 计算分页参数
+        log.debug("📚 [商店] 查询单词书列表 | 分类: {} | 难度: {} | 页码: {} | 每页: {}",
+                queryDTO.getCategory(), queryDTO.getDifficulty(), queryDTO.getPage(), queryDTO.getSize());
+
         int offset = (queryDTO.getPage() - 1) * queryDTO.getSize();
         int limit = queryDTO.getSize();
-        
-        // 构建排序
-        String orderBy = "sort_order DESC";
+
+        // 构建排序，注意加表别名避免歧义
+        String orderBy = "sp.sort_order DESC, sp.created_at DESC";
         if ("price".equals(queryDTO.getSortBy())) {
-            orderBy = "price ASC";
+            orderBy = "sp.price ASC";
         } else if ("hot".equals(queryDTO.getSortBy())) {
-            orderBy = "is_hot DESC";
+            orderBy = "sp.is_hot DESC, sp.sort_order DESC";
         } else if ("new".equals(queryDTO.getSortBy())) {
-            orderBy = "created_at DESC";
+            orderBy = "sp.created_at DESC";
         }
-        
-        // 查询总数
-        long total = storeProductMapper.selectAllActive().size();
-        
-        // 分页查询（简化版，实际需要实现分页查询）
-        List<StoreProduct> productList = storeProductMapper.selectAllActive();
-        
+
+        // 带条件的分页查询
+        long total = storeProductMapper.countByFilter(queryDTO.getCategory(), queryDTO.getDifficulty());
+        List<StoreProduct> productList = storeProductMapper.selectByFilter(
+                queryDTO.getCategory(), queryDTO.getDifficulty(), orderBy, limit, offset);
+
         // 转换为VO
         long userId = UserContextHolder.getUserId();
-        List<Long> UserBuyBooks = userMapper.selectPurchasedProducts(userId);
+        List<Long> userBuyBooks = userMapper.selectPurchasedProducts(userId);
         List<StoreBookVO> voList = productList.stream()
                 .map(product -> {
                     StoreBookVO vo = new StoreBookVO();
                     BeanUtils.copyProperties(product, vo);
                     vo.setBookName(product.getProductName());
-                    vo.setDescription(product.getDescription());
-                    vo.setCategory(product.getProductName());
-                    vo.setIsPurchased(UserBuyBooks.contains(product.getId()));
-                    // 计算折扣率（百分比），避免整数除法
+
+                    // 查询公共单词书获取分类和单词数量
+                    PublicVocabularyBook book = publicVocabularyBookMapper.selectById(product.getReferenceId());
+                    if (book != null) {
+                        vo.setCategory(book.getCategory());
+                        vo.setDifficulty(book.getDifficulty());
+                        vo.setWordCount(book.getWordCount());
+                    }
+
+                    vo.setIsPurchased(userBuyBooks.contains(product.getId()));
+                    // 计算折扣率（百分比）
                     if (product.getOriginalPrice() != null && product.getOriginalPrice() > 0) {
                         double discountRate = (product.getPrice() * 100.0) / product.getOriginalPrice();
                         vo.setDiscount((double) Math.round(discountRate));
                     } else {
                         vo.setDiscount(null);
                     }
-                    PublicVocabularyBook book = publicVocabularyBookMapper.selectById(product.getReferenceId());
-                    vo.setWordCount(book.getWordCount());
+
+                    // 从 Redis 获取实时销售计数（覆盖 MySQL 的旧值）
+                    String salesKey = RedisKeys.storeSales(product.getId());
+                    Object redisSales = redisUtil.get(salesKey);
+                    if (redisSales != null) {
+                        vo.setSalesCount(((Number) redisSales).intValue());
+                    }
+
                     return vo;
                 })
                 .collect(Collectors.toList());
-        
-        // 构建分页结果
+
         PageResult<StoreBookVO> pageResult = new PageResult<>(total, queryDTO.getPage(), queryDTO.getSize(), voList);
-        log.debug("✅ [商店] 查询成功 | 总数: {} | 当前页: {}", pageResult.getTotal(), pageResult.getCurrent());
-        
+        log.debug("✅ [商店] 查询成功 | 总数: {} | 当前页: {} | 返回: {} 条",
+                pageResult.getTotal(), pageResult.getCurrent(), voList.size());
+
         return pageResult;
     }
     
@@ -156,7 +159,7 @@ public class StoreServiceImpl implements StoreService {
             if (activities != null && !activities.isEmpty()) {
                 for (SeckillActivity activity : activities) {
                     // 1. 预热库存（确保转为 Long 类型）
-                    String stockKey = "seckill:stock:" + activity.getId();
+                    String stockKey = RedisKeys.seckillStock(activity.getId());
                     Long stockValue = (long) activity.getStock();
                     redisUtil.set(stockKey, stockValue, 24, TimeUnit.HOURS);
                     
@@ -194,7 +197,7 @@ public class StoreServiceImpl implements StoreService {
         }
         
         // 3. 检查积分余额
-        String key = "user:points:" + userId;
+        String key = RedisKeys.userPoints(userId);
         log.debug("🔍 [Redis] 从 Redis 获取用户积分余额 | Key: {}", key);
         Object balanceObj = redisUtil.get(key);
         if (balanceObj == null) {
@@ -277,9 +280,15 @@ public class StoreServiceImpl implements StoreService {
         // 8. 更新商品销售数量
         Integer currentSales = product.getSalesCount() != null ? product.getSalesCount() : 0;
         storeProductMapper.updateSalesCount(storeBookId, currentSales + 1);
-        
+        redisUtil.increment(RedisKeys.storeSales(storeBookId), 1);
+
+        // 9. 异步落库积分扣减
+        String orderNo = "PURCHASE_" + userId + "_" + storeBookId + "_" + System.currentTimeMillis();
+        messageProducer.SendPointDeductMessage(userId, product.getPrice(), orderNo);
+        log.info("📤 [购买] 发送积分落库消息 | 订单号: {}", orderNo);
+
         log.info("✅ [购买] 购买完成 | 用户ID: {} | 商店书ID: {} | 用户书ID: {}", userId, storeBookId, userBookId);
-        
+
         return userBookId;
     }
     
@@ -289,16 +298,22 @@ public class StoreServiceImpl implements StoreService {
     private StoreBookVO convertToVO(StoreProduct product) {
         StoreBookVO vo = new StoreBookVO();
         BeanUtils.copyProperties(product, vo);
-        
+        vo.setBookName(product.getProductName());
+
+        // 查询公共单词书获取分类和单词数量
+        PublicVocabularyBook book = publicVocabularyBookMapper.selectById(product.getReferenceId());
+        if (book != null) {
+            vo.setCategory(book.getCategory());
+            vo.setDifficulty(book.getDifficulty());
+            vo.setWordCount(book.getWordCount());
+        }
+
         // 计算折扣率
         if (product.getOriginalPrice() != null && product.getOriginalPrice() > 0) {
             double discount = (product.getPrice() * 100.0) / product.getOriginalPrice();
             vo.setDiscount((double)Math.round( discount));
         }
-        
-        // TODO: 设置isPurchased字段（需要从当前用户查询）
-        vo.setIsPurchased(false);
-        
+
         return vo;
     }
 
@@ -347,10 +362,12 @@ public class StoreServiceImpl implements StoreService {
                         dto.setBookName(product.getProductName());
                         dto.setCoverImage(product.getCoverImage());
                         dto.setOriginalPrice(product.getOriginalPrice());
-                        dto.setSoldCount(product.getSalesCount() != null ? product.getSalesCount() : 0);
                         dto.setDescription(product.getDescription());
-                        dto.setSoldCount(0);
-                        // 4. 查询单词书的详细信息（单词数量、难度等）
+                        // 4. 从 Redis 获取实时销售计数
+                        String salesKey = RedisKeys.storeSales(product.getId());
+                        Object redisSales = redisUtil.get(salesKey);
+                        dto.setSoldCount(redisSales != null ? ((Number) redisSales).intValue() : 0);
+                        // 5. 查询单词书的详细信息（单词数量、难度等）
                         if (product.getReferenceId() != null) {
                             PublicVocabularyBook book = publicVocabularyBookMapper.selectById(product.getReferenceId());
                             if (book != null) {
@@ -372,52 +389,131 @@ public class StoreServiceImpl implements StoreService {
 
     @Override
     @MethodRunTime("秒杀service层-秒杀方法耗时")
-    public Long flashsale(Long userId, Long id) throws InterruptedException {
+    @Transactional(rollbackFor = Exception.class)
+    public Long flashsale(Long userId, Long id) {
         log.info("⚡ [秒杀核心] 开始处理 | 用户ID: {} | 活动ID: {}", userId, id);
-        
+
+        // 0. 校验活动时间和商品信息
+        SeckillActivity activity = seckillActivityMapper.selectById(id);
+        if (activity == null) {
+            throw new RuntimeException("秒杀活动不存在");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (now.isBefore(activity.getStartTime())) {
+            throw new RuntimeException("秒杀尚未开始");
+        }
+        if (now.isAfter(activity.getEndTime())) {
+            throw new RuntimeException("秒杀已结束");
+        }
+
+        // 0.5 限流拦截（在 Redis 操作之前）
+        // 第一层：用户级限流，每人每秒最多 3 次，防恶意刷接口
+        if (!rateLimiter.tryAcquireSeckillUser(userId, id)) {
+            log.warn("🚫 [秒杀] 用户触发频率限制 | 用户ID: {} | 活动ID: {}", userId, id);
+            throw new RateLimitException(RateLimitException.TYPE_USER, "操作太频繁，请稍后重试");
+        }
+        // 第二层：全局限流，令牌桶容量 300 / 每秒填充 200，保护后端
+        if (!rateLimiter.tryAcquireSeckillGlobal()) {
+            log.warn("🚫 [秒杀] 系统触发全局限流 | 用户ID: {} | 活动ID: {}", userId, id);
+            throw new RateLimitException(RateLimitException.TYPE_GLOBAL, "活动太火爆，请稍后重试");
+        }
+
         // 调试：检查 Redis 中是否有库存数据
-        Object stockObj = redisUtil.get("seckill:stock:" + id);
-        log.debug("🔍 [调试] Redis 库存Key: seckill:stock:{} | 当前值: {}", id, stockObj);
-        
+        Object stockObj = redisUtil.get(RedisKeys.seckillStock(id));
+        log.debug("🔍 [调试] Redis 库存Key: {} | 当前值: {}", RedisKeys.seckillStock(id), stockObj);
+
         if (stockObj == null) {
             log.error("❌ [秒杀失败] Redis 中未找到库存数据，请检查预热是否成功 | 活动ID: {}", id);
             throw new RuntimeException("秒杀活动未就绪，请稍后重试");
         }
-        
+
         // 1. 预扣减库存（先扣库存，再检查幂等性）
-        String stockKey = "seckill:stock:" + id;
+        String stockKey = RedisKeys.seckillStock(id);
         Long remaining = redisUtil.decrement(stockKey, 1);
         log.debug("📊 [库存扣减] 活动ID: {} | 扣减后剩余: {}", id, remaining);
-        
+
         if (remaining == null || remaining < 0) {
-            // 库存不足，回滚库存计数
             redisUtil.increment(stockKey, 1);
             log.warn("⚠️ [秒杀拦截] 库存不足 | 活动ID: {} | 剩余: {}", id, remaining);
             throw new RuntimeException("库存已抢光");
         }
-        
+
         // 2. 幂等性校验：一人一单 (SETNX)
-        String userKey = "seckill:user:" + userId + ":" + id;
+        String userKey = RedisKeys.seckillUser(userId, id);
         Boolean isFirst = redisUtil.setIfAbsent(userKey, "1", 1, TimeUnit.HOURS);
         if (!isFirst) {
-            // 如果重复请求，回滚库存
             redisUtil.increment(stockKey, 1);
             log.warn("⚠️ [秒杀拦截] 用户重复请求 | 用户ID: {}", userId);
             throw new RuntimeException("您已经抢购过了，请勿重复提交");
         }
-        
-        // 3. 创建订单记录
+
+        // 3. 检查积分余额（从 Redis 缓存查，快速拦截）
+        String pointsKey = RedisKeys.userPoints(userId);
+        Object balanceObj = redisUtil.get(pointsKey);
+        if (balanceObj != null) {
+            long balance = ((Number) balanceObj).longValue();
+            if (balance < activity.getSeckillPrice()) {
+                redisUtil.increment(stockKey, 1);
+                redisUtil.delete(userKey);
+                log.warn("⚠️ [秒杀拦截] 积分不足 | 用户ID: {} | 余额: {} | 需要: {}",
+                        userId, balance, activity.getSeckillPrice());
+                throw new RuntimeException("积分不足");
+            }
+        }
+
+        // 4. 创建订单记录
         String orderNo = "SK" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 8);
         SeckillOrder order = new SeckillOrder();
         order.setUserId(userId);
         order.setActivityId(id);
         order.setOrderNo(orderNo);
         seckillOrderMapper.insert(order);
-        
-        log.info("✅ [秒杀成功] 订单已生成 | 用户ID: {} | 活动ID: {} | 订单号: {}", userId, id, orderNo);
-        
-        // TODO: 发送 MQ 消息进行异步处理（扣除积分等）
 
+        // 5. MySQL 库存扣减（乐观锁，兜底）
+        int affectedRows = seckillActivityMapper.deductStock(id);
+        if (affectedRows <= 0) {
+            // 回滚 Redis 库存和幂等性标记，抛出异常触发 @Transactional 回滚
+            redisUtil.increment(stockKey, 1);
+            redisUtil.delete(userKey);
+            log.warn("⚠️ [秒杀] MySQL 库存扣减失败，已回滚 | 活动ID: {}", id);
+            throw new RuntimeException("库存已抢光");
+        }
+
+        // 6. Redis + MySQL 销售计数更新
+        if (activity.getProductId() != null) {
+            redisUtil.increment(RedisKeys.storeSales(activity.getProductId()), 1);
+            StoreProduct sp = storeProductMapper.selectById(activity.getProductId());
+            if (sp != null) {
+                int newSales = (sp.getSalesCount() != null ? sp.getSalesCount() : 0) + 1;
+                storeProductMapper.updateSalesCount(activity.getProductId(), newSales);
+            }
+        }
+
+        // 7. 写幂等性日志 + 发送 MQ 异步消息
+        sendFlashSaleMqMessage(userId, id, orderNo, activity.getSeckillPrice(), activity.getProductId());
+
+        log.info("✅ [秒杀成功] 订单已生成 | 用户ID: {} | 活动ID: {} | 订单号: {}", userId, id, orderNo);
         return order.getId();
+    }
+
+    /**
+     * 发送秒杀异步消息（先写 SeckillMessageLog，再发 MQ，防止重复消费）
+     */
+    private void sendFlashSaleMqMessage(Long userId, Long activityId, String orderNo, Integer price, Long productId) {
+        // 写幂等性日志（status=0 待消费）
+        SeckillMessageLog messageLog = new SeckillMessageLog();
+        messageLog.setMessageId(orderNo);
+        messageLog.setMessageContent(String.format("userId=%d,activityId=%d,price=%d,productId=%d", userId, activityId, price, productId));
+        messageLog.setStatus(0);
+        seckillMessageLogMapper.insert(messageLog);
+
+        // 发 MQ 消息
+        Map<String, Object> msg = new HashMap<>();
+        msg.put("userId", userId);
+        msg.put("activityId", activityId);
+        msg.put("orderNo", orderNo);
+        msg.put("productId", productId);
+        messageProducer.sendSeckillMessage(msg);
+        log.debug("📤 [秒杀] 异步消息已发送 | 订单号: {}", orderNo);
     }
 }

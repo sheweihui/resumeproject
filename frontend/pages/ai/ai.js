@@ -35,7 +35,7 @@ Page({
   async checkHealth() {
     try {
       const res = await aiAPI.health()
-      this.setData({ backendOnline: res?.llm_ready === true })
+      this.setData({ backendOnline: res?.agent_ready === true })
     } catch (e) {
       this.setData({ backendOnline: false })
     }

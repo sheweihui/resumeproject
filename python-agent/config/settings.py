@@ -23,6 +23,13 @@ LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "60"))
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "1024"))
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.7"))
 
+# LLM 重试配置
+LLM_RETRY_MAX = int(os.getenv("LLM_RETRY_MAX", "3"))
+LLM_RETRY_DELAY = float(os.getenv("LLM_RETRY_DELAY", "1.0"))
+
+# 工具执行配置
+TOOL_EXECUTION_TIMEOUT = int(os.getenv("TOOL_EXECUTION_TIMEOUT", "15"))
+
 # Tool Calling 配置
 TOOL_CALL_MAX_ROUNDS = int(os.getenv("TOOL_CALL_MAX_ROUNDS", "3"))
 CONVERSATION_MAX_AGE_DAYS = int(os.getenv("CONVERSATION_MAX_AGE_DAYS", "7"))

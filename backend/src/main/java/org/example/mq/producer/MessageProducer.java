@@ -1,9 +1,9 @@
 package org.example.mq.producer;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.config.RabbitMQConfig;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -13,12 +13,13 @@ import java.util.Map;
  * 消息生产者
  */
 @Slf4j
+@RequiredArgsConstructor
 @Component
 public class MessageProducer {
-    
-    @Autowired
-    private RabbitTemplate rabbitTemplate;
-    
+
+    private final RabbitTemplate rabbitTemplate;
+    private final RabbitMQConfig rabbitMQConfig;
+
     /**
      * 发送用户注册消息
      * 
@@ -141,5 +142,18 @@ public class MessageProducer {
         
         log.info("📤 [生产者] 发送秒杀消息 | 用户ID: {} | 活动ID: {} | 订单号: {}", 
                 message.get("userId"), message.get("activityId"), message.get("orderNo"));
+    }
+    public void SendPointDeductMessage(long userId,Integer points,String orderNumber){
+        Map<String,Object>message = new HashMap<>();
+        message.put("userId", userId);
+        message.put("points", points);
+        message.put("orderNo", orderNumber);
+        message.put("timestamp", System.currentTimeMillis());
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE_DIRECT,
+                rabbitMQConfig.ROUTING_KEY_POINTS_DEDUCT,
+                message
+        );
+        log.info("📤 [生产者] 发送积分落库消息 | 用户ID: {} | 积分: {} | 订单号: {}", userId, points, orderNumber);
     }
 }

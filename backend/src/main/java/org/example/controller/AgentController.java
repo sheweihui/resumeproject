@@ -1,6 +1,7 @@
 package org.example.controller;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
@@ -19,7 +20,8 @@ import java.util.Map;
 @RequestMapping("/api/agent")
 public class AgentController {
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    @Autowired
+    private RestTemplate restTemplate;
 
     @Value("${agent.base-url:http://localhost:8000}")
     private String agentBaseUrl;

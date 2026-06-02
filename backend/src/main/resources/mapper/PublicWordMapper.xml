@@ -65,6 +65,15 @@
         </foreach>
     </select>
 
+    <!-- 根据关键词模糊搜索 -->
+    <select id="selectByKeyword" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List" />
+        FROM public_word
+        WHERE word_text LIKE CONCAT('%', #{keyword}, '%')
+        ORDER BY frequency_rank ASC
+        LIMIT 10
+    </select>
+
     <!-- 根据标签查询 -->
     <select id="selectByTags" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List" />

@@ -21,4 +21,6 @@ public interface UserService {
      * 根据ID获取用户
      */
     User getById(Long id);
+
+    void deductPoints(long id, long points, String orderNumber);
 }

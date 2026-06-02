@@ -1,5 +1,6 @@
 package org.example.service.impl;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.entity.PublicBookWord;
 import org.example.entity.PublicWord;
@@ -9,7 +10,6 @@ import org.example.mapper.PublicWordMapper;
 import org.example.mapper.UserBookWordMapper;
 import org.example.mapper.UserWordMapper;
 import org.example.service.UserBookWordService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,17 +23,13 @@ import java.util.Map;
  * 用户单词书-单词关联服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class UserBookWordServiceImpl implements UserBookWordService {
-    
-    @Autowired
-    private UserBookWordMapper userBookWordMapper;
-    
-    @Autowired
-    private UserWordMapper userWordMapper;
-    
-    @Autowired
-    private PublicWordMapper publicWordMapper;
+
+    private final UserBookWordMapper userBookWordMapper;
+    private final UserWordMapper userWordMapper;
+    private final PublicWordMapper publicWordMapper;
     
     @Override
     @Transactional

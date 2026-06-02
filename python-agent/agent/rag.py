@@ -1,11 +1,75 @@
 """RAG 检索模块：从后端拉取用户数据作为上下文"""
 
 import asyncio
+import re
 import time
+from collections import OrderedDict
 from typing import Optional
 from loguru import logger
 
 from api.endpoints import Endpoints
+
+# 英语停用词（模块级常量）
+_STOPWORDS: set[str] = {
+    "the", "is", "are", "was", "were", "has", "have", "had", "do",
+    "does", "did", "will", "would", "could", "should", "may", "might",
+    "can", "shall", "am", "be", "been", "being", "it", "its", "this",
+    "that", "these", "those", "what", "which", "who", "whom", "whose",
+    "when", "where", "why", "how", "a", "an", "and", "or", "but", "if",
+    "because", "so", "than", "too", "very", "just", "about", "above",
+    "after", "again", "all", "also", "any", "back", "each", "every",
+    "for", "from", "get", "got", "here", "him", "his", "into", "let",
+    "like", "make", "more", "most", "much", "must", "my", "no", "not",
+    "now", "of", "on", "one", "only", "other", "our", "out", "over",
+    "own", "say", "she", "some", "tell", "their", "them", "then",
+    "there", "they", "thing", "things", "think", "through", "upon",
+    "use", "used", "way", "well", "with", "without", "you", "your",
+    "want", "know", "help", "test", "learn", "study", "recommend",
+    "need", "give", "tell", "show", "check", "see", "look",
+}
+
+# RAG 缓存配置
+_RAG_CACHE_MAX = 128  # 最大缓存条目数
+_RAG_CACHE_TTL = 60   # 默认过期时间（秒）
+
+
+class _LRUCache:
+    """带 TTL 和 LRU 淘汰的内存缓存"""
+
+    def __init__(self, maxsize: int = _RAG_CACHE_MAX, default_ttl: int = _RAG_CACHE_TTL):
+        self._maxsize = maxsize
+        self._default_ttl = default_ttl
+        self._data: OrderedDict[str, tuple[str, float]] = OrderedDict()
+
+    def get(self, key: str) -> Optional[str]:
+        entry = self._data.get(key)
+        if entry is None:
+            return None
+        value, expiry = entry
+        if expiry < time.time():
+            del self._data[key]
+            return None
+        # LRU: 移到末尾
+        self._data.move_to_end(key)
+        return value
+
+    def set(self, key: str, value: str, ttl: Optional[int] = None):
+        expiry = time.time() + (ttl if ttl is not None else self._default_ttl)
+        self._data[key] = (value, expiry)
+        self._data.move_to_end(key)
+        # LRU 淘汰
+        while len(self._data) > self._maxsize:
+            self._data.popitem(last=False)
+
+    def clear(self, key: Optional[str] = None):
+        if key:
+            self._data.pop(key, None)
+        else:
+            self._data.clear()
+
+    @property
+    def size(self) -> int:
+        return len(self._data)
 
 
 class RAGRetriever:
@@ -13,144 +77,191 @@ class RAGRetriever:
 
     def __init__(self, api: Endpoints):
         self.api = api
-        # 简单内存缓存：key -> (value, expiry)
-        self._cache: dict[str, tuple[str, float]] = {}
+        self._cache = _LRUCache()
 
-    def _cache_get(self, key: str) -> Optional[str]:
-        entry = self._cache.get(key)
-        if entry and entry[1] > time.time():
-            return entry[0]
-        if entry:
-            del self._cache[key]
-        return None
+    def clear_cache(self, key: Optional[str] = None):
+        self._cache.clear(key)
 
-    def _cache_set(self, key: str, value: str, ttl: int = 60):
-        self._cache[key] = (value, time.time() + ttl)
+    # ---- 主入口 ----
 
     async def retrieve_context(self, user_id: Optional[int], message: str) -> str:
         """
-        根据用户问题和身份检索相关上下文，返回拼装后的 Markdown 文本。
-        """
-        parts: list[str] = []
+        根据用户问题和身份检索相关上下文。
 
-        # 1. 提取可能的英文单词并查词
+        并发执行所有独立查询：公共查词、个人查词、用户概况。
+        返回拼装后的 Markdown 文本。
+        """
         words = self._extract_words(message)
+        tasks: list[asyncio.Task] = []
+
         if words:
             for word in words[:3]:
-                cache_key = f"word:{word}"
-                cached = self._cache_get(cache_key)
-                if cached:
-                    parts.append(cached)
-                else:
-                    try:
-                        result = await asyncio.to_thread(self.api.search_word, word)
-                        if result:
-                            word_info = self._format_word_context(result)
-                            if word_info:
-                                section = f"## 单词查询\n{word_info}"
-                                parts.append(section)
-                                self._cache_set(cache_key, section, ttl=120)
-                    except Exception as e:
-                        logger.debug(f"查词失败 {word}: {e}")
+                tasks.append(asyncio.create_task(self._search_public_word(word)))
+                if user_id:
+                    tasks.append(asyncio.create_task(self._search_my_word(user_id, word)))
 
-        # 2. 获取用户学习概况
         if user_id:
-            cache_key = f"profile:{user_id}"
-            cached = self._cache_get(cache_key)
-            if cached:
-                parts.append(cached)
-            else:
-                try:
-                    profile = await self._get_user_profile(user_id)
-                    if profile:
-                        section = f"## 用户学习概况\n{profile}"
-                        parts.append(section)
-                        self._cache_set(cache_key, section)
-                except Exception as e:
-                    logger.debug(f"获取用户概况失败: {e}")
+            tasks.append(asyncio.create_task(self._get_user_profile(user_id)))
 
-        context = "\n\n".join(parts)
-        logger.debug(f"RAG 检索到的上下文长度: {len(context)} 字符")
+        if not tasks:
+            return ""
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        parts: list[str] = []
+        for r in results:
+            if isinstance(r, Exception):
+                logger.debug(f"RAG 子任务异常: {r}")
+                continue
+            if r and isinstance(r, str) and r.strip():
+                parts.append(r)
+
+        # 按标题去重
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for p in parts:
+            key = next(
+                (line for line in p.split("\n") if line.startswith("## ")),
+                p[:60],
+            )
+            if key not in seen:
+                seen.add(key)
+                deduped.append(p)
+
+        context = "\n\n".join(deduped)
+        logger.debug(f"RAG 上下文: {len(context)} 字符, {len(deduped)} 个片段")
         return context
 
-    async def _get_user_profile(self, user_id: int) -> str:
-        """获取用户个性化学习概况"""
+    # ---- 子任务 ----
+
+    async def _search_public_word(self, word: str) -> Optional[str]:
+        cache_key = f"word:{word}"
+        cached = self._cache.get(cache_key)
+        if cached:
+            return cached
+
+        try:
+            result = await asyncio.to_thread(self.api.search_word, word)
+            word_info = self._format_word_context(result)
+            if word_info:
+                section = f"## 单词查询\n{word_info}"
+                self._cache.set(cache_key, section, ttl=120)
+                return section
+        except Exception as e:
+            logger.debug(f"查词失败 {word}: {e}")
+
+        return None
+
+    async def _search_my_word(self, user_id: int, word: str) -> Optional[str]:
+        cache_key = f"myword:{user_id}:{word}"
+        cached = self._cache.get(cache_key)
+        if cached:
+            return cached
+
+        try:
+            result = await asyncio.to_thread(self.api.search_my_word, word)
+            if result and isinstance(result, list) and result:
+                my_info = self._format_my_word_context(result)
+                if my_info:
+                    section = f"## 我的单词本\n{my_info}"
+                    self._cache.set(cache_key, section, ttl=120)
+                    return section
+        except Exception as e:
+            logger.debug(f"搜索个人单词失败 {word}: {e}")
+
+        return None
+
+    async def _get_user_profile(self, user_id: int) -> Optional[str]:
+        cache_key = f"profile:{user_id}"
+        cached = self._cache.get(cache_key)
+        if cached:
+            return cached
+
+        balance_task = asyncio.to_thread(self.api.get_points_balance)
+        info_task = asyncio.to_thread(self.api.get_user_info, user_id)
+        books_task = asyncio.to_thread(self.api.get_book_list, user_id)
+
+        balance, info, books = await asyncio.gather(
+            balance_task, info_task, books_task,
+            return_exceptions=True,
+        )
+
         lines: list[str] = []
 
-        # 积分余额
-        try:
-            balance = await asyncio.to_thread(self.api.get_points_balance)
-            if balance and isinstance(balance, dict):
-                lines.append(f"- 积分余额: {balance.get('balance', '?')}")
-        except Exception:
-            pass
+        if isinstance(balance, dict) and balance.get("balance") is not None:
+            lines.append(f"- 积分余额: {balance['balance']}")
 
-        # 用户信息
-        try:
-            info = await asyncio.to_thread(self.api.get_user_info, user_id)
-            if info and isinstance(info, dict):
-                nickname = info.get("nickname") or info.get("username", "")
-                if nickname:
-                    lines.append(f"- 用户名: {nickname}")
-        except Exception:
-            pass
+        if isinstance(info, dict):
+            nickname = info.get("nickname") or info.get("username", "")
+            if nickname:
+                lines.append(f"- 用户名: {nickname}")
 
-        # 单词本列表 + 单词数
-        try:
-            books = await asyncio.to_thread(self.api.get_book_list, user_id)
-            if books and isinstance(books, list):
-                book_names = [b.get("bookName", "?") for b in books[:3]]
-                lines.append(f"- 单词本: {', '.join(book_names)}")
+        if isinstance(books, list) and books:
+            lines.append(f"- 单词本数量: {len(books)}")
 
-                # 第一个单词本的单词数
-                if books:
-                    first_book = books[0]
-                    book_id = first_book.get("id")
-                    book_name = first_book.get("bookName", "")
-                    if book_id:
-                        try:
-                            words = await asyncio.to_thread(
-                                self.api.get_words_by_book, book_id
-                            )
-                            if words and isinstance(words, list):
-                                lines.append(f"- 当前学习: {book_name} 共 {len(words)} 词")
-                        except Exception:
-                            pass
-        except Exception:
-            pass
+            preview_tasks = []
+            valid_books = []
+            for book in books[:5]:
+                book_id = book.get("id")
+                word_count = book.get("wordCount", 0)
+                if book_id and word_count and word_count > 0:
+                    preview_tasks.append(
+                        asyncio.to_thread(self.api.get_words_by_book, book_id)
+                    )
+                    valid_books.append(book)
+                else:
+                    valid_books.append(book)
+                    preview_tasks.append(None)
+
+            if preview_tasks:
+                word_results = await asyncio.gather(
+                    *[t for t in preview_tasks if t is not None],
+                    return_exceptions=True,
+                )
+            else:
+                word_results = []
+
+            word_idx = 0
+            for i, book in enumerate(valid_books):
+                book_name = book.get("bookName", "?")
+                word_count = book.get("wordCount", 0)
+                source = "购买" if book.get("sourceType") == 2 else "自建"
+                lines.append(f"  - [{book.get('id')}] 《{book_name}》({source}) — {word_count} 词")
+
+                if preview_tasks[i] is not None and word_idx < len(word_results):
+                    r = word_results[word_idx]
+                    word_idx += 1
+                    if isinstance(r, list) and r:
+                        previews = [w.get("wordText", "?") for w in r[:5]]
+                        lines.append(f"    包含: {', '.join(previews)}{'...' if len(r) > 5 else ''}")
 
         if not lines:
             lines.append(f"- 用户ID: {user_id}")
 
-        return "\n".join(lines)
+        section = f"## 用户学习概况\n" + "\n".join(lines)
+        self._cache.set(cache_key, section)
+        return section
 
-    # ---- 低层工具 ----
+    # ---- 格式化 ----
 
-    def _extract_words(self, text: str) -> list[str]:
-        """从文本中提取可能的英文单词"""
-        import re
-        candidates = re.findall(r"\b[a-zA-Z]{2,20}\b", text)
-        stopwords = {
-            "the", "is", "are", "was", "were", "has", "have", "had", "do",
-            "does", "did", "will", "would", "could", "should", "may", "might",
-            "can", "shall", "am", "be", "been", "being", "it", "its", "this",
-            "that", "these", "those", "what", "which", "who", "whom", "whose",
-            "when", "where", "why", "how", "a", "an", "and", "or", "but", "if",
-            "because", "so", "than", "too", "very", "just", "about", "above",
-            "after", "again", "all", "also", "any", "back", "each", "every",
-            "for", "from", "get", "got", "here", "him", "his", "into", "let",
-            "like", "make", "more", "most", "much", "must", "my", "no", "not",
-            "now", "of", "on", "one", "only", "other", "our", "out", "over",
-            "own", "say", "she", "some", "tell", "their", "them", "then",
-            "there", "they", "thing", "things", "think", "through", "upon",
-            "use", "used", "way", "well", "with", "without", "you", "your",
-            "want", "know", "help", "test", "learn", "study", "recommend",
-            "need", "give", "tell", "show", "check", "see", "look",
-        }
-        return [w for w in candidates if w.lower() not in stopwords]
+    def _format_my_word_context(self, results: list) -> str:
+        lines = []
+        for w in results[:5]:
+            text = w.get("wordText", "?")
+            definition = w.get("definition", "")
+            tags = w.get("tags", "")
+            note = w.get("note", "")
+            parts = [f"- {text}"]
+            if definition:
+                parts.append(f"释义: {definition}")
+            if tags:
+                parts.append(f"标签: {tags}")
+            if note:
+                parts.append(f"笔记: {note}")
+            lines.append(" | ".join(parts))
+        return "\n".join(lines) if lines else ""
 
     def _format_word_context(self, result) -> str:
-        """格式化单词查询结果为上下文"""
         if isinstance(result, list) and result:
             w = result[0]
         elif isinstance(result, dict):
@@ -173,3 +284,8 @@ class RAGRetriever:
             fields.append(f"翻译: {w['exampleTranslation']}")
 
         return " | ".join(fields) if fields else ""
+
+    @staticmethod
+    def _extract_words(text: str) -> list[str]:
+        candidates = re.findall(r"\b[a-zA-Z]{2,20}\b", text)
+        return [w for w in candidates if w.lower() not in _STOPWORDS]

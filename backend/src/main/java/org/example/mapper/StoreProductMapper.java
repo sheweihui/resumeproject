@@ -67,4 +67,19 @@ public interface StoreProductMapper {
      * 统计单词书的单词数量
      */
     int countWordsByBookId(@Param("id") Long id);
+
+    /**
+     * 条件分页查询
+     */
+    List<StoreProduct> selectByFilter(@Param("category") String category,
+                                      @Param("difficulty") Integer difficulty,
+                                      @Param("orderBy") String orderBy,
+                                      @Param("limit") int limit,
+                                      @Param("offset") int offset);
+
+    /**
+     * 条件计数
+     */
+    long countByFilter(@Param("category") String category,
+                       @Param("difficulty") Integer difficulty);
 }

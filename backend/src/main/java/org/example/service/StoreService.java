@@ -69,5 +69,5 @@ public interface StoreService {
      * @param id 秒杀活动ID
      * @return 秒杀订单ID
      */
-    Long flashsale(Long userId, Long id) throws InterruptedException;
+    Long flashsale(Long userId, Long id);
 }

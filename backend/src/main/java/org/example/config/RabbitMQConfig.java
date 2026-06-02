@@ -3,6 +3,7 @@ package org.example.config;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.context.annotation.Bean;
@@ -61,6 +62,9 @@ public class RabbitMQConfig {
      */
     public static final String USER_MESSAGE_EXCHANGE = "USER_MESSAGE_EXCHANGE";
 
+    /** 死信交换机 */
+    public static final String EXCHANGE_DLX = "exchange.dlx";
+
     // ==================== 队列名称常量 ====================
     /**
      * 用户注册队列
@@ -101,6 +105,18 @@ public class RabbitMQConfig {
      * 用户消息队列（用于异步缓存用户相关数据）
      */
     public static final String USER_MESSAGE_QUEUE = "USER_MESSAGE_QUEUE";
+    /**
+     * 积分落库队列
+     */
+    public static final String QUEUE_POINTS_DEDUCT = "queue.points.deduct";
+    /**
+     * 积分落库路由键
+     */
+    public static final String ROUTING_KEY_POINTS_DEDUCT = "points.deduct";
+
+
+    /** 统一死信队列 */
+    public static final String QUEUE_DLQ_ALL = "queue.dlq.all";
 
     // ==================== 路由键常量 ====================
     /**
@@ -183,6 +199,19 @@ public class RabbitMQConfig {
         return rabbitTemplate;
     }
 
+    // ==================== RabbitAdmin（声明所有 Queue/Exchange/Binding） ====================
+    /**
+     * RabbitAdmin 负责将所有 Queue、Exchange、Binding Bean 声明到 RabbitMQ 服务端。
+     * <p>
+     * 所有业务队列在此处定义为 Bean（含 x-dead-letter-exchange 参数），
+     * RabbitMQConfig 是 @Configuration 类，Bean 优先于 @Component 消费者初始化，
+     * 因此 RabbitAdmin 在监听器容器启动前完成队列声明，避免参数冲突。
+     */
+    @Bean
+    public RabbitAdmin rabbitAdmin(ConnectionFactory connectionFactory) {
+        return new RabbitAdmin(connectionFactory);
+    }
+
     // ==================== 交换机定义 ====================
     /**
      * 创建直连交换机
@@ -208,162 +237,19 @@ public class RabbitMQConfig {
         return new DirectExchange(USER_MESSAGE_EXCHANGE, true, false);
     }
 
-    // ==================== 队列定义 ====================
-    /**
-     * 创建用户注册队列
-     */
     @Bean
-    public Queue userRegisterQueue() {
-        return QueueBuilder.durable(QUEUE_USER_REGISTER).build();
+    public TopicExchange dlxExchange() {
+        return new TopicExchange(EXCHANGE_DLX, true, false);
     }
-    
-    /**
-     * 创建用户登录队列（用于异步缓存）
-     */
     @Bean
-    public Queue userLoginQueue() {
-        return QueueBuilder.durable(QUEUE_USER_LOGIN).build();
+    public Queue dlqAll() {
+        return QueueBuilder.durable(QUEUE_DLQ_ALL).build();
     }
-    
-    /**
-     * 创建积分奖励队列
-     */
     @Bean
-    public Queue pointsRewardQueue() {
-        return QueueBuilder.durable(QUEUE_POINTS_REWARD).build();
-    }
-    
-    /**
-     * 创建通知队列
-     */
-    @Bean
-    public Queue notificationQueue() {
-        return QueueBuilder.durable(QUEUE_NOTIFICATION).build();
-    }
-    
-    /**
-     * 创建购买队列
-     */
-    @Bean
-    public Queue purchaseQueue() {
-        return QueueBuilder.durable(QUEUE_PURCHASE).build();
-    }
-    
-    /**
-     * 创建用户账户初始化队列
-     */
-    @Bean
-    public Queue userAccountQueue() {
-        return QueueBuilder.durable(QUEUE_USER_ACCOUNT).build();
-    }
-    
-    /**
-     * 创建秒杀队列
-     */
-    @Bean
-    public Queue seckillQueue() {
-        return QueueBuilder.durable(QUEUE_SECKILL).build();
-    }
-    
-    /**
-     * 创建用户消息队列
-     */
-    @Bean
-    public Queue userMessageQueue() {
-        return QueueBuilder.durable(USER_MESSAGE_QUEUE).build();
+    public Binding dlqAllBinding(Queue dlqAll, TopicExchange dlxExchange) {
+        return BindingBuilder.bind(dlqAll)
+                .to(dlxExchange)
+                .with("#");
     }
 
-    // ==================== 绑定关系配置 ====================
-    
-    // --- 直连交换机绑定 ---
-    
-    /**
-     * 绑定用户注册队列到直连交换机
-     * 路由: user.register → queue.user.register
-     */
-    @Bean
-    public Binding userRegisterBinding(Queue userRegisterQueue, DirectExchange directExchange) {
-        return BindingBuilder.bind(userRegisterQueue)
-                .to(directExchange)
-                .with(ROUTING_KEY_USER_REGISTER);
-    }
-    
-    /**
-     * 绑定用户登录队列到直连交换机
-     * 路由: user.login → queue.user.login
-     */
-    @Bean
-    public Binding userLoginBinding(Queue userLoginQueue, DirectExchange directExchange) {
-        return BindingBuilder.bind(userLoginQueue)
-                .to(directExchange)
-                .with(ROUTING_KEY_USER_LOGIN);
-    }
-    
-    /**
-     * 绑定积分奖励队列到直连交换机
-     * 路由: points.reward → queue.points.reward
-     */
-    @Bean
-    public Binding pointsRewardBinding(Queue pointsRewardQueue, DirectExchange directExchange) {
-        return BindingBuilder.bind(pointsRewardQueue)
-                .to(directExchange)
-                .with(ROUTING_KEY_POINTS_REWARD);
-    }
-    
-    /**
-     * 绑定购买队列到直连交换机
-     * 路由: purchase.async → queue.purchase
-     */
-    @Bean
-    public Binding purchaseBinding(Queue purchaseQueue, DirectExchange directExchange) {
-        return BindingBuilder.bind(purchaseQueue)
-                .to(directExchange)
-                .with(ROUTING_KEY_PURCHASE);
-    }
-    
-    /**
-     * 绑定用户账户初始化队列到直连交换机
-     * 路由: user.account.create → queue.user.account
-     */
-    @Bean
-    public Binding userAccountBinding(Queue userAccountQueue, DirectExchange directExchange) {
-        return BindingBuilder.bind(userAccountQueue)
-                .to(directExchange)
-                .with(ROUTING_KEY_USER_ACCOUNT);
-    }
-    
-    /**
-     * 绑定秒杀队列到直连交换机
-     * 路由: seckill.order → queue.seckill
-     */
-    @Bean
-    public Binding seckillBinding(Queue seckillQueue, DirectExchange directExchange) {
-        return BindingBuilder.bind(seckillQueue)
-                .to(directExchange)
-                .with(ROUTING_KEY_SECKILL);
-    }
-    
-    /**
-     * 绑定用户消息队列到用户消息交换机
-     * 路由: user.message → USER_MESSAGE_QUEUE
-     */
-    @Bean
-    public Binding userMessageBinding(Queue userMessageQueue, DirectExchange userMessageExchange) {
-        return BindingBuilder.bind(userMessageQueue)
-                .to(userMessageExchange)
-                .with(USER_MESSAGE_ROUTING_KEY);
-    }
-    
-    // --- 主题交换机绑定 ---
-    
-    /**
-     * 绑定通知队列到主题交换机
-     * 路由: notification.# → queue.notification (支持通配符)
-     */
-    @Bean
-    public Binding notificationBinding(Queue notificationQueue, TopicExchange topicExchange) {
-        return BindingBuilder.bind(notificationQueue)
-                .to(topicExchange)
-                .with(ROUTING_KEY_NOTIFICATION);
-    }
 }

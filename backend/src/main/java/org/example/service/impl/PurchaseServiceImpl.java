@@ -1,5 +1,6 @@
 package org.example.service.impl;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.entity.*;
 import org.example.mapper.PublicBookWordMapper;
@@ -8,8 +9,8 @@ import org.example.mapper.StoreProductMapper;
 import org.example.mapper.StorePurchaseRecordMapper;
 import org.example.mq.producer.MessageProducer;
 import org.example.service.*;
+import org.example.constant.RedisKeys;
 import org.example.utils.RedisUtil;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,35 +23,19 @@ import java.util.Map;
  * 购买服务实现类
  */
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class PurchaseServiceImpl implements PurchaseService {
 
-    @Autowired
-    private StoreProductMapper storeProductMapper;
-
-    @Autowired
-    private StorePurchaseRecordMapper storePurchaseRecordMapper;
-
-    @Autowired
-    private UserPointsAccountService userPointsAccountService;
-
-    @Autowired
-    private UserVocabularyBookService userVocabularyBookService;
-
-    @Autowired
-    private UserBookWordService userBookWordService;
-
-    @Autowired
-    private PublicBookWordMapper publicBookWordMapper;
-
-    @Autowired
-    private MessageProducer messageProducer;
-
-    @Autowired
-    private PublicVocabularyBookMapper publicVocabularyBookMapper;
-
-    @Autowired
-    private RedisUtil redisUtil;
+    private final StoreProductMapper storeProductMapper;
+    private final StorePurchaseRecordMapper storePurchaseRecordMapper;
+    private final UserPointsAccountService userPointsAccountService;
+    private final UserVocabularyBookService userVocabularyBookService;
+    private final UserBookWordService userBookWordService;
+    private final PublicBookWordMapper publicBookWordMapper;
+    private final MessageProducer messageProducer;
+    private final PublicVocabularyBookMapper publicVocabularyBookMapper;
+    private final RedisUtil redisUtil;
 
     /**
      * 同步处理用户购买逻辑
@@ -131,7 +116,7 @@ public class PurchaseServiceImpl implements PurchaseService {
 
         long endTime = System.currentTimeMillis();
         long duration = endTime - startTime;
-        redisUtil.delete("user:books" + userId);
+        redisUtil.delete(RedisKeys.userBooks(userId));
         log.info("✅ [异步购买-总计] 关键路径完成 | 用户ID: {} | 商品ID: {} | 总耗时: {}ms",
                 userId, productId, duration);
         return userBookId;

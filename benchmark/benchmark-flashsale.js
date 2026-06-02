@@ -15,10 +15,10 @@ const BASE_URL = 'http://localhost:8080';
 // 预生成 100 个测试用户（初始化时用）
 const USER_POOL = new SharedArray('users', function () {
   const users = [];
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 1000; i++) {
     users.push({
       username: `bench_user_${i}`,
-      password: '123456',
+      password: 'admin123',
     });
   }
   return users;
@@ -38,30 +38,32 @@ function getToken(userIndex) {
     headers: { 'Content-Type': 'application/json' },
   });
 
-  // 登录
-  const res = http.post(`${BASE_URL}/api/user/login`, JSON.stringify(user), {
+  // 给用户充积分（秒杀需要积分）
+  const loginRes = http.post(`${BASE_URL}/api/user/login`, JSON.stringify(user), {
     headers: { 'Content-Type': 'application/json' },
   });
-
-  if (res.status === 200) {
-    const body = res.json();
-    const token = body.data?.token || body.token;
-    tokens[cacheKey] = token;
-    return token;
+  let token = null;
+  if (loginRes.status === 200) {
+    const body = loginRes.json();
+    token = body.data?.token || body.token;
   }
-  return null;
+  if (token) {
+    tokens[cacheKey] = token;
+  }
+  return token;
 }
 
 export const options = {
   stages: [
-    { duration: '10s', target: 10 },    // 快速爬升
-    { duration: '20s', target: 50 },    // 50 并发
-    { duration: '20s', target: 100 },   // 100 并发
-    { duration: '10s', target: 0 },     // 回落
+    { duration: '10s', target: 50 },    // 快速爬升到 50
+    { duration: '20s', target: 200 },   // 爬到 200
+    { duration: '20s', target: 500 },   // 爬到 500
+    { duration: '20s', target: 1000 },  // 峰值 1000
+    { duration: '20s', target: 0 },     // 回落
   ],
   thresholds: {
-    http_req_failed: ['rate<0.02'],
-    http_req_duration: ['p(95)<500'],  // 秒杀应该极快（Redis 操作）
+    http_req_failed: ['rate<0.05'],
+    http_req_duration: ['p(95)<2000'],  // 1000 并发放宽到 2s
   },
 };
 
@@ -81,7 +83,7 @@ export default function () {
 
   // 秒杀请求
   const res = http.post(
-    `${BASE_URL}/api/store/flash-sale/purchase/1`,
+    `${BASE_URL}/api/store/flash-sale/purchase/11`,
     null,
     { headers }
   );
@@ -96,6 +98,6 @@ export default function () {
     }
   }
 
-  // 秒杀场景下间隔更短（模拟瞬间爆发）
-  sleep(Math.random() * 0.5);
+  // 秒杀场景，无间隔（纯压极限 QPS）
+  // sleep(Math.random() * 0.5);
 }

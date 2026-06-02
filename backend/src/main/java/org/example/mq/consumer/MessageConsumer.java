@@ -1,6 +1,7 @@
 package org.example.mq.consumer;
 
 import com.rabbitmq.client.Channel;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.annotation.RabbitMqMessage;
 import org.example.annotation.RabbitTime;
@@ -17,16 +18,26 @@ import org.example.service.UserBookWordService;
 import org.example.service.UserPointsAccountService;
 import org.example.service.UserService;
 import org.example.service.UserVocabularyBookService;
+import org.example.mapper.SeckillActivityMapper;
 import org.example.mapper.SeckillMessageLogMapper;
+import org.example.mapper.SeckillOrderMapper;
+import org.example.entity.SeckillActivity;
 import org.example.entity.SeckillMessageLog;
+import org.example.entity.StoreProduct;
+import org.example.entity.StorePurchaseRecord;
+import org.example.mapper.StoreProductMapper;
+import org.example.mapper.StorePurchaseRecordMapper;
+import org.example.mapper.UserVocabularyBookMapper;
+import org.example.constant.RedisKeys;
 import org.example.utils.RedisUtil;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -38,27 +49,25 @@ import static org.example.utils.UserEnum.USER_TOKEN;
  * 消息消费者
  */
 @Slf4j
+@RequiredArgsConstructor
 @Component
 public class MessageConsumer {
-    
+
     private final Jackson2JsonMessageConverter messageConverter = new Jackson2JsonMessageConverter();
 
-    @Autowired
-    private RedisUtil redisUtil;
-    @Autowired
-    private UserService userService;
-    @Autowired
-    private UserVocabularyBookService userVocabularyBookService;
-    @Autowired
-    private UserPointsAccountService userPointsAccountService;
-    @Autowired
-    private UserBookWordService userBookWordService;
-    @Autowired
-    private PublicBookWordMapper publicBookWordMapper;
-    @Autowired
-    private PublicVocabularyBookMapper publicVocabularyBookMapper;
-    @Autowired
-    private SeckillMessageLogMapper seckillMessageLogMapper;
+    private final RedisUtil redisUtil;
+    private final UserService userService;
+    private final UserVocabularyBookService userVocabularyBookService;
+    private final UserPointsAccountService userPointsAccountService;
+    private final UserBookWordService userBookWordService;
+    private final PublicBookWordMapper publicBookWordMapper;
+    private final PublicVocabularyBookMapper publicVocabularyBookMapper;
+    private final SeckillMessageLogMapper seckillMessageLogMapper;
+    private final SeckillActivityMapper seckillActivityMapper;
+    private final StoreProductMapper storeProductMapper;
+    private final StorePurchaseRecordMapper storePurchaseRecordMapper;
+    private final UserVocabularyBookMapper userVocabularyBookMapper;
+    private final SeckillOrderMapper seckillOrderMapper;
     /**
      * 消费用户注册消息
      */
@@ -83,11 +92,22 @@ public class MessageConsumer {
             
         } catch (Exception e) {
             log.error("❌ [消费者] 处理用户注册消息失败", e);
-            // 拒绝消息并重新入队
-            channel.basicNack(deliveryTag, false, true);
+
+            Integer retryCount = (Integer) message.getMessageProperties().getHeaders().get("x-retry-count");
+            if (retryCount == null) retryCount = 0;
+
+            if (retryCount < 3) {
+                retryCount++;
+                message.getMessageProperties().getHeaders().put("x-retry-count", retryCount);
+                log.warn("⚠️ [消费者] 第 {} 次重试 | deliveryTag: {}", retryCount, deliveryTag);
+                channel.basicNack(deliveryTag, false, true);
+            } else {
+                log.error("❌ [消费者] 达到最大重试次数，消息进入死信队列 | deliveryTag: {}", deliveryTag);
+                channel.basicNack(deliveryTag, false, false);
+            }
         }
     }
-    
+
     /**
      * 消费用户登录消息（异步缓存用户信息到Redis）
      */
@@ -101,21 +121,15 @@ public class MessageConsumer {
             Long userId = ((Number) body.get("userId")).longValue();
             String token = (String) body.get("token");
             log.info("📥 [消费者] 开始缓存用户信息 | 用户ID: {}", userId);
-            
-            // TODO: 在这里实现缓存逻辑
-            // 1. 查询用户详细信息
-            // 2. 查询用户的单词本列表
-            // 3. 查询用户的学习进度
-            // 4. 查询用户的积分余额
-            // 5. 将所有数据缓存到Redis
-            
-            // 示例伪代码：
-             User user = userService.getById(userId);
-             List<UserVocabularyBook> books = userVocabularyBookService.listByUserId(userId);
-             UserPointsAccount points = userPointsAccountService.getAccountByUserId(userId);
-             //token:user:books:userId
-             redisUtil.set("user:books:" + userId, books, 2, TimeUnit.HOURS);
-             redisUtil.set("user:points:" + userId, points, 2, TimeUnit.HOURS);
+
+            User user = userService.getById(userId);
+            List<UserVocabularyBook> books = userVocabularyBookService.listByUserId(userId);
+            UserPointsAccount points = userPointsAccountService.getAccountByUserId(userId);
+
+            redisUtil.set(RedisKeys.userBooks(userId), books, 2, TimeUnit.HOURS);
+            if (points != null) {
+                redisUtil.set(RedisKeys.userPoints(userId), points.getBalance(), 2, TimeUnit.HOURS);
+            }
             String redisKey = USER_TOKEN.getValue() + ":" + token;
 
             redisUtil.set(redisKey, user, 2, TimeUnit.HOURS);
@@ -127,11 +141,22 @@ public class MessageConsumer {
             
         } catch (Exception e) {
             log.error("❌ [消费者] 缓存用户信息失败", e);
-            // 拒绝消息并重新入队
-            channel.basicNack(deliveryTag, false, true);
+
+            Integer retryCount = (Integer) message.getMessageProperties().getHeaders().get("x-retry-count");
+            if (retryCount == null) retryCount = 0;
+
+            if (retryCount < 3) {
+                retryCount++;
+                message.getMessageProperties().getHeaders().put("x-retry-count", retryCount);
+                log.warn("⚠️ [消费者] 第 {} 次重试 | deliveryTag: {}", retryCount, deliveryTag);
+                channel.basicNack(deliveryTag, false, true);
+            } else {
+                log.error("❌ [消费者] 达到最大重试次数，消息进入死信队列 | deliveryTag: {}", deliveryTag);
+                channel.basicNack(deliveryTag, false, false);
+            }
         }
     }
-    
+
     /**
      * 消费积分奖励消息
      */
@@ -157,11 +182,22 @@ public class MessageConsumer {
             
         } catch (Exception e) {
             log.error("❌ [消费者] 处理积分奖励消息失败", e);
-            // 拒绝消息并重新入队
-            channel.basicNack(deliveryTag, false, true);
+
+            Integer retryCount = (Integer) message.getMessageProperties().getHeaders().get("x-retry-count");
+            if (retryCount == null) retryCount = 0;
+
+            if (retryCount < 3) {
+                retryCount++;
+                message.getMessageProperties().getHeaders().put("x-retry-count", retryCount);
+                log.warn("⚠️ [消费者] 第 {} 次重试 | deliveryTag: {}", retryCount, deliveryTag);
+                channel.basicNack(deliveryTag, false, true);
+            } else {
+                log.error("❌ [消费者] 达到最大重试次数，消息进入死信队列 | deliveryTag: {}", deliveryTag);
+                channel.basicNack(deliveryTag, false, false);
+            }
         }
     }
-    
+
     /**
      * 消费通知消息
      */
@@ -187,11 +223,22 @@ public class MessageConsumer {
             
         } catch (Exception e) {
             log.error("❌ [消费者] 处理通知消息失败", e);
-            // 拒绝消息并重新入队
-            channel.basicNack(deliveryTag, false, true);
+
+            Integer retryCount = (Integer) message.getMessageProperties().getHeaders().get("x-retry-count");
+            if (retryCount == null) retryCount = 0;
+
+            if (retryCount < 3) {
+                retryCount++;
+                message.getMessageProperties().getHeaders().put("x-retry-count", retryCount);
+                log.warn("⚠️ [消费者] 第 {} 次重试 | deliveryTag: {}", retryCount, deliveryTag);
+                channel.basicNack(deliveryTag, false, true);
+            } else {
+                log.error("❌ [消费者] 达到最大重试次数，消息进入死信队列 | deliveryTag: {}", deliveryTag);
+                channel.basicNack(deliveryTag, false, false);
+            }
         }
     }
-    
+
     /**
      * 消费购买消息（异步处理单词复制等非关键路径操作）
      */
@@ -261,8 +308,19 @@ public class MessageConsumer {
             
         } catch (Exception e) {
             log.error("❌ [异步消费者] 处理购买消息失败 | 错误: {}", e.getMessage(), e);
-            // 拒绝消息并重新入队
-            channel.basicNack(deliveryTag, false, true);
+
+            Integer retryCount = (Integer) message.getMessageProperties().getHeaders().get("x-retry-count");
+            if (retryCount == null) retryCount = 0;
+
+            if (retryCount < 3) {
+                retryCount++;
+                message.getMessageProperties().getHeaders().put("x-retry-count", retryCount);
+                log.warn("⚠️ [异步消费者] 第 {} 次重试 | deliveryTag: {}", retryCount, deliveryTag);
+                channel.basicNack(deliveryTag, false, true);
+            } else {
+                log.error("❌ [异步消费者] 达到最大重试次数，消息进入死信队列 | deliveryTag: {}", deliveryTag);
+                channel.basicNack(deliveryTag, false, false);
+            }
         }
     }
     /**
@@ -323,14 +381,21 @@ public class MessageConsumer {
     @RabbitListener(queues = RabbitMQConfig.QUEUE_SECKILL)
     public void consumeSeckill(Message message, Channel channel) throws IOException {
         long deliveryTag = message.getMessageProperties().getDeliveryTag();
-        
+        Map<String, Object> body = null;
+
         try {
-            Map<String, Object> body = (Map<String, Object>) messageConverter.fromMessage(message);
-            
+            body = (Map<String, Object>) messageConverter.fromMessage(message);
+
             Long userId = ((Number) body.get("userId")).longValue();
             Long activityId = ((Number) body.get("activityId")).longValue();
             String orderNo = (String) body.get("orderNo");
-            Integer price = ((Number) body.get("price")).intValue();
+
+            // 从数据库查询秒杀价格，不依赖客户端传值
+            SeckillActivity activity = seckillActivityMapper.selectById(activityId);
+            if (activity == null) {
+                throw new RuntimeException("秒杀活动不存在 | 活动ID: " + activityId);
+            }
+            Integer price = activity.getSeckillPrice();
             
             // 幂等性检查：通过订单号（messageId）查询是否已处理
             SeckillMessageLog messageLog = seckillMessageLogMapper.selectByMessageId(orderNo);
@@ -338,6 +403,15 @@ public class MessageConsumer {
                 log.info("✅ [异步消费者-秒杀] 消息已处理，跳过 | 订单号: {}", orderNo);
                 channel.basicAck(deliveryTag, false);
                 return;
+            }
+
+            // 如果日志不存在（兜底），创建一个
+            if (messageLog == null) {
+                SeckillMessageLog newLog = new SeckillMessageLog();
+                newLog.setMessageId(orderNo);
+                newLog.setMessageContent(String.format("userId=%d,activityId=%d", userId, activityId));
+                newLog.setStatus(0);
+                seckillMessageLogMapper.insert(newLog);
             }
             
             log.info("⏱️ [异步消费者-秒杀] 开始处理 | 用户ID: {} | 活动ID: {} | 订单号: {}", 
@@ -352,10 +426,57 @@ public class MessageConsumer {
                 activityId,
                 orderNo
             );
+
+            // 步骤2：创建用户单词书并复制单词
+            Long productId = body.get("productId") != null ? ((Number) body.get("productId")).longValue() : activity.getProductId();
+            if (productId != null) {
+                StoreProduct product = storeProductMapper.selectById(productId);
+                if (product != null) {
+                    // 创建用户单词书
+                    UserVocabularyBook userBook = new UserVocabularyBook();
+                    userBook.setUserId(userId);
+                    userBook.setBookName(product.getProductName());
+                    userBook.setDescription(product.getDescription());
+                    userBook.setCoverImage(product.getCoverImage());
+                    userBook.setWordCount(0);
+                    userBook.setIsPublic(0);
+                    userBook.setSourceType(2); // 2-从商店购买
+                    userBook.setSourceStoreBookId(productId);
+                    userBook.setCreatedAt(LocalDateTime.now());
+                    userBook.setUpdatedAt(LocalDateTime.now());
+                    userVocabularyBookMapper.insert(userBook);
+                    Long userBookId = userBook.getId();
+
+                    // 复制单词关联
+                    if (product.getReferenceId() != null) {
+                        List<PublicBookWord> publicBookWords = publicBookWordMapper.selectByBookId(product.getReferenceId());
+                        if (publicBookWords != null && !publicBookWords.isEmpty()) {
+                            int wordCount = userBookWordService.batchAddWordsToBook(userId, userBookId, publicBookWords);
+                            userVocabularyBookMapper.updateWordCount(userBookId, wordCount);
+                            log.info("📋 [异步消费者-秒杀] 复制单词完成 | 用户书ID: {} | 单词数: {}", userBookId, wordCount);
+                        }
+                    }
+
+                    // 记录购买记录
+                    StorePurchaseRecord purchaseRecord = new StorePurchaseRecord();
+                    purchaseRecord.setUserId(userId);
+                    purchaseRecord.setProductId(productId);
+                    purchaseRecord.setPricePaid(price);
+                    purchaseRecord.setPurchaseType(3); // 3-秒杀购买
+                    purchaseRecord.setUserBookId(userBookId);
+                    purchaseRecord.setCreatedAt(LocalDateTime.now());
+                    storePurchaseRecordMapper.insert(purchaseRecord);
+
+                    log.info("📚 [异步消费者-秒杀] 单词书已入库 | 用户书ID: {}", userBookId);
+                }
+            }
             
             // 更新消息状态为成功（幂等性标记）
             seckillMessageLogMapper.updateStatus(orderNo, 1);
-            
+
+            // 更新订单状态为已完成
+            seckillOrderMapper.updateStatusByOrderNo(orderNo, 1);
+
             log.info("✅ [异步消费者-秒杀] 处理完成 | 用户ID: {} | 订单号: {}", userId, orderNo);
             
             // ✅ 手动确认消息
@@ -375,15 +496,65 @@ public class MessageConsumer {
             if (retryCount < MAX_RETRY) {
                 retryCount++;
                 message.getMessageProperties().getHeaders().put("x-retry-count", retryCount);
-                
-                log.warn("⚠️ [异步消费者-秒杀] 第 {} 次重试 | 订单号: {}", retryCount, 
+
+                if (body != null && body.get("orderNo") != null) {
+                    seckillMessageLogMapper.incrementRetryCount((String) body.get("orderNo"));
+                }
+
+                log.warn("⚠️ [异步消费者-秒杀] 第 {} 次重试 | 订单号: {}", retryCount,
                         message.getMessageProperties().getHeaders().get("orderNo"));
-                
+
                 channel.basicNack(deliveryTag, false, true);
             } else {
-                log.error("❌ [异步消费者-秒杀] 达到最大重试次数({})，丢弃消息 | 订单号: {}", 
+                log.error("❌ [异步消费者-秒杀] 达到最大重试次数({})，丢弃消息 | 订单号: {}",
                         MAX_RETRY, message.getMessageProperties().getHeaders().get("orderNo"));
-                
+
+                // 标记订单为异常状态
+                if (body != null && body.get("orderNo") != null) {
+                    seckillOrderMapper.updateStatusByOrderNo((String) body.get("orderNo"), 2);
+                }
+
+                channel.basicNack(deliveryTag, false, false);
+            }
+        }
+    }
+    @RabbitListener(queues = RabbitMQConfig.QUEUE_POINTS_DEDUCT)
+    @RabbitMqMessage(message = "积分扣除")
+    public void consumePointsDeduct(Message message, Channel channel) throws IOException {
+        long deliveryTag = message.getMessageProperties().getDeliveryTag();
+        try {
+            Map<String, Object> body = (Map<String, Object>) messageConverter.fromMessage(message);
+
+            Long userId = ((Number) body.get("userId")).longValue();
+            Integer points = ((Number) body.get("points")).intValue();
+            String orderNo = (String) body.get("orderNo");
+
+            log.info("📥 [消费者] 处理积分落库 | 用户ID: {} | 积分: {} | 订单号: {}", userId, points, orderNo);
+
+            userPointsAccountService.deductPoints(
+                    userId, points,
+                    1,              // type: 1=购买扣减（参考其他调用的传参）
+                    "购买商品扣积分",
+                    null,           // referenceId 传 null
+                    orderNo         // idempotencyKey 用订单号防重复
+            );
+
+            channel.basicAck(deliveryTag, false);
+            log.info("✅ [消费者] 积分落库完成 | 用户ID: {}", userId);
+
+        } catch (Exception e) {
+            log.error("❌ [消费者] 积分落库失败", e);
+
+            Integer retryCount = (Integer) message.getMessageProperties().getHeaders().get("x-retry-count");
+            if (retryCount == null) retryCount = 0;
+
+            if (retryCount < 3) {
+                retryCount++;
+                message.getMessageProperties().getHeaders().put("x-retry-count", retryCount);
+                log.warn("⚠️ [消费者] 第 {} 次重试 | deliveryTag: {}", retryCount, deliveryTag);
+                channel.basicNack(deliveryTag, false, true);
+            } else {
+                log.error("❌ [消费者] 达到最大重试次数，消息进入死信队列 | deliveryTag: {}", deliveryTag);
                 channel.basicNack(deliveryTag, false, false);
             }
         }

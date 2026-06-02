@@ -77,4 +77,9 @@ public class StoreBookVO {
      * 折扣率（百分比）
      */
     private Double discount;
+
+    /**
+     * 销售数量
+     */
+    private Integer salesCount;
 }
