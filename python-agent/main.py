@@ -110,7 +110,7 @@ def interactive_mode(agent: Agent):
 
     while True:
         try:
-            cmd = input("\n🤖 > ").strip()
+            cmd = input("\n>> ").strip()
             if not cmd:
                 continue
             if cmd in ("exit", "quit", "q"):

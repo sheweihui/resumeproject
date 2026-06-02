@@ -9,6 +9,12 @@ from loguru import logger
 from api.endpoints import Endpoints
 from api.client import ApiError
 from config.settings import TOOL_EXECUTION_TIMEOUT
+from agent.formatters import (
+    format_word_result,
+    format_flash_sales,
+    format_book_list,
+    format_word_list,
+)
 
 
 @dataclass
@@ -185,7 +191,7 @@ def _format_tool_result(name: str, result) -> str:
         return "操作成功（无返回数据）"
 
     if name in ("search_word", "ai_fill_word"):
-        return _format_word_result(result)
+        return format_word_result(result)
     if name == "get_points_balance":
         return f"当前积分余额: {result.get('balance', 'N/A')}"
     if name == "daily_checkin":
@@ -193,70 +199,10 @@ def _format_tool_result(name: str, result) -> str:
                 f"连续签到 {result.get('continuousDays', 0)} 天. "
                 f"{result.get('message', '')}")
     if name == "get_flash_sale_list":
-        return _format_flash_sales(result)
+        return format_flash_sales(result)
     if name in ("get_store_books", "get_user_books"):
-        return _format_book_list(result)
+        return format_book_list(result)
     if name == "get_book_words":
-        return _format_word_list(result)
+        return format_word_list(result)
 
     return str(result)
-
-
-def _format_word_result(words) -> str:
-    if isinstance(words, list) and words:
-        return _format_single_word(words[0])
-    if isinstance(words, dict):
-        return _format_single_word(words)
-    return "未找到该单词信息。"
-
-
-def _format_single_word(w: dict) -> str:
-    parts = []
-    if w.get("wordText"):
-        parts.append(f"单词: {w['wordText']}")
-    if w.get("phonetic"):
-        parts.append(f"音标: {w['phonetic']}")
-    if w.get("partOfSpeech"):
-        parts.append(f"词性: {w['partOfSpeech']}")
-    if w.get("definition"):
-        parts.append(f"释义: {w['definition']}")
-    if w.get("exampleSentence"):
-        parts.append(f"例句: {w['exampleSentence']}")
-    if w.get("exampleTranslation"):
-        parts.append(f"翻译: {w['exampleTranslation']}")
-    return " | ".join(parts)
-
-
-def _format_flash_sales(sales) -> str:
-    if not sales:
-        return "当前没有秒杀活动"
-    lines = ["秒杀活动列表:"]
-    for s in sales:
-        lines.append(f"  [{s.get('id')}] {s.get('name', '')} — "
-                     f"¥{s.get('price', 0)} | 剩余: {s.get('stock', 0)}")
-    return "\n".join(lines)
-
-
-def _format_book_list(books) -> str:
-    if not books:
-        return "暂无数据"
-    if isinstance(books, dict) and "records" in books:
-        books = books["records"]
-    lines = ["单词书列表:"]
-    for b in books[:10]:
-        name = b.get("bookName") or b.get("name", "")
-        price = b.get("price", "免费")
-        lines.append(f"  [{b.get('id')}] {name} | ¥{price}")
-    return "\n".join(lines)
-
-
-def _format_word_list(words) -> str:
-    if not words:
-        return "该单词本中没有单词"
-    lines = [f"共 {len(words)} 个单词:"]
-    for w in words[:20]:
-        text = w.get("wordText", "?")
-        definition = w.get("definition", "")
-        preview = definition[:50] + "..." if len(definition) > 50 else definition
-        lines.append(f"  {text} — {preview}")
-    return "\n".join(lines)

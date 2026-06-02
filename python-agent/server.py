@@ -218,7 +218,7 @@ def health():
 def upload_knowledge(req: KnowledgeUploadRequest):
     """上传文档到知识库"""
     if not kb or not kb.available:
-        raise HTTPException(status_code=503, detail="知识库不可用（chromadb 未安装）")
+        raise HTTPException(status_code=503, detail="知识库不可用")
 
     if not req.title.strip():
         raise HTTPException(status_code=400, detail="标题不能为空")
@@ -278,10 +278,14 @@ async def chat(req: ChatRequest):
             username=f"user_{req.user_id or 0}",
         ))
 
-    # 2. 创建/获取对话
-    conv_id = req.conversation_id or conversations.create_conversation(user_id=req.user_id)
+    # 2. 创建/获取对话（优先按 user_id 续上次的对话）
     if req.conversation_id:
+        conv_id = req.conversation_id
         conversations.update_metadata(conv_id, user_id=req.user_id)
+    elif req.user_id:
+        conv_id = conversations.find_by_user(req.user_id) or conversations.create_conversation(user_id=req.user_id)
+    else:
+        conv_id = conversations.create_conversation()
 
     user_msg_preview = req.message[:60].replace("\n", " ")
     logger.info(f"[对话 {conv_id}] 用户: {user_msg_preview}")

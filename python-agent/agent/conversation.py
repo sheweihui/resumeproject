@@ -36,6 +36,21 @@ class ConversationManager:
         })
         return conv_id
 
+    def find_by_user(self, user_id: int) -> Optional[str]:
+        """找到该用户最近活跃的对话 ID，没有则返回 None"""
+        latest_id = None
+        latest_time = 0.0
+        for path in CONV_DIR.glob("*.json"):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if data.get("user_id") == user_id and data.get("last_active", 0) > latest_time:
+                    latest_time = data["last_active"]
+                    latest_id = data["id"]
+            except Exception:
+                continue
+        return latest_id
+
     def add_message(self, conv_id: str, role: str, content: str) -> None:
         """添加一条消息到对话历史"""
         conv = self._load(conv_id)

@@ -15,6 +15,11 @@ env/
 
 # Data
 data/*.log
+data/conversations/
+data/chroma_db/
+data/knowledge_docs.json
+data/auth.json
+data/memory.json
 
 # IDE
 .idea/
